@@ -1,3 +1,5 @@
+mod decode;
+
 use anyhow::{Context, Result, anyhow};
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -5,9 +7,12 @@ use bytes::Bytes;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{StreamConfig, SupportedStreamConfig};
 use std::collections::VecDeque;
+use std::fs::File;
 use std::io;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::sync::{Arc, Mutex};
+use ogg::{Packet, PacketWriteEndInfo, PacketWriter};
+use tokio::io::AsyncWriteExt;
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::{MIME_TYPE_OPUS, MediaEngine};
@@ -21,6 +26,7 @@ use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::TrackLocal;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
+use tokio::sync::mpsc::{channel as async_channel, Receiver as AsyncReceiver, Sender as AsyncSender};
 
 struct JitterBuffer {
     buffer: VecDeque<Vec<f32>>,
@@ -51,6 +57,10 @@ impl JitterBuffer {
     fn len(&self) -> usize {
         self.buffer.len()
     }
+}
+
+fn amain() -> Result<()> {
+    decode::decode()
 }
 
 #[tokio::main]
@@ -97,9 +107,13 @@ async fn main() -> Result<()> {
     let mut encoder = opus::Encoder::new(
         input_device_config.sample_rate.0,
         opus::Channels::Mono,
-        opus::Application::Voip,
+        opus::Application::Audio,
     )
     .context("Failed to create opus encoder")?;
+    encoder.set_bitrate(opus::Bitrate::Max)?;
+    encoder.set_inband_fec(true)?;
+    encoder.set_vbr(false)?;
+
     let decoder = Arc::new(Mutex::new(
         opus::Decoder::new(48000, opus::Channels::Mono).context("Failed to create opus encoder")?,
     ));
@@ -116,6 +130,7 @@ async fn main() -> Result<()> {
     println!("Channels:");
     println!("Input device: {}", input_device_config.channels);
     println!("Output device: {}", output_device_config.channels);
+    println!("Output device buffer size: {:?}", output_device_config.buffer_size);
 
     let api = APIBuilder::new()
         .with_media_engine(m)
@@ -153,9 +168,6 @@ async fn main() -> Result<()> {
         Result::<()>::Ok(())
     });
 
-    const FRAME_SIZE: usize = 960; // 20ms at 48kHz mono
-    let mut sample_buffer: Vec<f32> = Vec::new();
-
     let (input_tx, mut input_rx) = tokio::sync::mpsc::channel::<Sample>(100);
 
     tokio::spawn(async move {
@@ -163,7 +175,7 @@ async fn main() -> Result<()> {
             let _ = audio_track.write_sample(&sample).await;
         }
     });
-    
+
     let spec = hound::WavSpec{
         channels: 1,
         sample_rate: 48000,
@@ -172,23 +184,27 @@ async fn main() -> Result<()> {
     };
     let writer = Arc::new(Mutex::new(hound::WavWriter::create("mic_recording.wav", spec)?));
 
+    // Raw Opus writer with 2-byte BE length prefix
+    let raw_file = File::create("mic_encoded.opus")?;
+    let raw_writer = Arc::new(Mutex::new(BufWriter::new(raw_file)));
+    let raw_clone = raw_writer.clone();
+
+    // Input buffer to collect samples until we have 960 (20ms at 48kHz)
+    const FRAME_SIZE: usize = 960;
+    let input_buffer = Arc::new(Mutex::new(Vec::<f32>::new()));
+    let input_buffer_clone = input_buffer.clone();
+
     let input_stream = input_device
         .build_input_stream(
             &input_device_config,
             move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                sample_buffer.extend_from_slice(data);
-                
-                let mut writer = writer.lock().unwrap();
-                for &sample in data {
-                    let s = (sample * i16::MAX as f32) as i16;
-                    writer.write_sample(s).unwrap();
-                }
+                let mut buffer = input_buffer_clone.lock().unwrap();
+                buffer.extend_from_slice(data);
 
-                while sample_buffer.len() >= FRAME_SIZE {
-                    let frame = &sample_buffer[..FRAME_SIZE];
+                while buffer.len() >= FRAME_SIZE {
+                    let frame: Vec<f32> = buffer.drain(..FRAME_SIZE).collect();
                     let mut encoded = vec![0u8; 4000];
-
-                    match encoder.encode_float(frame, &mut encoded) {
+                    match encoder.encode_float(&frame, &mut encoded) {
                         Ok(len) => {
                             let sample = Sample {
                                 data: Bytes::copy_from_slice(&encoded[..len]),
@@ -198,13 +214,23 @@ async fn main() -> Result<()> {
                             if let Err(e) = input_tx.try_send(sample) {
                                 eprintln!("Failed to send sample to async task: {:?}", e);
                             }
+
+                            // Write raw Opus frame: length prefix + data
+                            let mut w = raw_clone.lock().unwrap();
+                            let len_be = (len as u16).to_be_bytes();
+                            let _ = w.write_all(&len_be);
+                            let _ = w.write_all(&encoded[..len]);
                         }
                         Err(e) => {
                             eprintln!("Failed to encode packet: {:?}", e);
                         }
                     }
 
-                    sample_buffer.drain(..FRAME_SIZE);
+                    let mut writer = writer.lock().unwrap();
+                    for &sample in data {
+                        let s = (sample * i16::MAX as f32) as i16;
+                        writer.write_sample(s).unwrap();
+                    }
                 }
             },
             print_stream_error,
@@ -213,7 +239,6 @@ async fn main() -> Result<()> {
         .context("Failed to build input stream")?;
     input_stream.play().context("Failed to play input stream")?;
 
-    // Use it in your track callback:
     peer_connection.on_track(Box::new(move |track, _, _| {
         let jitter_buffer = Arc::new(Mutex::new(JitterBuffer::new(10))); // 200ms buffer at 20ms frames
         let (output_tx, output_rx) = std::sync::mpsc::channel::<Vec<f32>>();
@@ -227,6 +252,8 @@ async fn main() -> Result<()> {
             println!("Track started");
             while let Ok((rtp, _)) = track.read_rtp().await {
                 let mut decoded = vec![0f32; FRAME_SIZE];
+                let start_time = std::time::Instant::now();
+
                 match decoder
                     .lock()
                     .unwrap()
@@ -234,6 +261,13 @@ async fn main() -> Result<()> {
                 {
                     Ok(decoded_samples) => {
                         let mut buffer = jitter_buffer.lock().unwrap();
+                        println!(
+                            "Producer: Decoded frame of {} samples in {:?}, JitterBuffer size: {}",
+                            decoded_samples,
+                            start_time.elapsed(),
+                            buffer.len()
+                        );
+
                         if !buffer.push(decoded) {
                             println!("Jitter buffer full, dropping frame");
                         }
