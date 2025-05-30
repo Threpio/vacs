@@ -4,15 +4,12 @@ use anyhow::{Context, Result, anyhow};
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use bytes::Bytes;
+use cpal::StreamConfig;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{StreamConfig, SupportedStreamConfig};
-use std::collections::VecDeque;
 use std::fs::File;
 use std::io;
 use std::io::{BufWriter, Write};
 use std::sync::{Arc, Mutex};
-use ogg::{Packet, PacketWriteEndInfo, PacketWriter};
-use tokio::io::AsyncWriteExt;
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::{MIME_TYPE_OPUS, MediaEngine};
@@ -26,36 +23,59 @@ use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::TrackLocal;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
-use tokio::sync::mpsc::{channel as async_channel, Receiver as AsyncReceiver, Sender as AsyncSender};
 
-struct JitterBuffer {
-    buffer: VecDeque<Vec<f32>>,
-    max_size: usize,
+pub struct CircularBuffer {
+    buffer: Vec<f32>,
+    capacity: usize,
+    read_index: usize,
+    write_index: usize,
+    full: bool,
 }
 
-impl JitterBuffer {
-    fn new(max_size: usize) -> Self {
+impl CircularBuffer {
+    pub fn new(capacity: usize) -> Self {
         Self {
-            buffer: VecDeque::with_capacity(max_size),
-            max_size,
+            buffer: vec![0.0; capacity],
+            capacity,
+            read_index: 0,
+            write_index: 0,
+            full: false,
         }
     }
 
-    fn push(&mut self, data: Vec<f32>) -> bool {
-        if self.buffer.len() < self.max_size {
-            self.buffer.push_back(data);
-            true
+    pub fn push_samples(&mut self, samples: &[f32]) {
+        for &sample in samples {
+            self.buffer[self.write_index] = sample;
+            self.write_index = (self.write_index + 1) % self.capacity;
+            if self.full {
+                // Overwrite oldest sample
+                self.read_index = (self.read_index + 1) % self.capacity;
+            }
+            self.full = self.write_index == self.read_index;
+        }
+    }
+
+    pub fn pop_samples(&mut self, out: &mut [f32]) {
+        for sample in out.iter_mut() {
+            if self.read_index == self.write_index && !self.full {
+                // buffer is empty
+                *sample = 0.0;
+            } else {
+                *sample = self.buffer[self.read_index];
+                self.read_index = (self.read_index + 1) % self.capacity;
+                self.full = false;
+            }
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        if self.full {
+            self.capacity
+        } else if self.write_index >= self.read_index {
+            self.write_index - self.read_index
         } else {
-            false
+            self.capacity - self.read_index + self.write_index
         }
-    }
-
-    fn pop(&mut self) -> Option<Vec<f32>> {
-        self.buffer.pop_front()
-    }
-
-    fn len(&self) -> usize {
-        self.buffer.len()
     }
 }
 
@@ -130,7 +150,10 @@ async fn main() -> Result<()> {
     println!("Channels:");
     println!("Input device: {}", input_device_config.channels);
     println!("Output device: {}", output_device_config.channels);
-    println!("Output device buffer size: {:?}", output_device_config.buffer_size);
+    println!(
+        "Output device buffer size: {:?}",
+        output_device_config.buffer_size
+    );
 
     let api = APIBuilder::new()
         .with_media_engine(m)
@@ -176,13 +199,16 @@ async fn main() -> Result<()> {
         }
     });
 
-    let spec = hound::WavSpec{
+    let spec = hound::WavSpec {
         channels: 1,
         sample_rate: 48000,
         bits_per_sample: 16,
         sample_format: hound::SampleFormat::Int,
     };
-    let writer = Arc::new(Mutex::new(hound::WavWriter::create("mic_recording.wav", spec)?));
+    let writer = Arc::new(Mutex::new(hound::WavWriter::create(
+        "mic_recording.wav",
+        spec,
+    )?));
 
     // Raw Opus writer with 2-byte BE length prefix
     let raw_file = File::create("mic_encoded.opus")?;
@@ -240,8 +266,7 @@ async fn main() -> Result<()> {
     input_stream.play().context("Failed to play input stream")?;
 
     peer_connection.on_track(Box::new(move |track, _, _| {
-        let jitter_buffer = Arc::new(Mutex::new(JitterBuffer::new(10))); // 200ms buffer at 20ms frames
-        let (output_tx, output_rx) = std::sync::mpsc::channel::<Vec<f32>>();
+        let jitter_buffer = Arc::new(Mutex::new(CircularBuffer::new(960 * 10))); // 200ms buffer at 20ms frames
         let decoder = Arc::clone(&decoder);
         let jitter_buffer_clone = Arc::clone(&jitter_buffer);
         let output_device = Arc::clone(&output_device);
@@ -268,9 +293,7 @@ async fn main() -> Result<()> {
                             buffer.len()
                         );
 
-                        if !buffer.push(decoded) {
-                            println!("Jitter buffer full, dropping frame");
-                        }
+                        buffer.push_samples(&decoded[..decoded_samples]);
                     }
                     Err(e) => {
                         eprintln!("Opus decode error: {:?}", e);
@@ -285,16 +308,9 @@ async fn main() -> Result<()> {
                 .build_output_stream(
                     &output_device_config,
                     move |data: &mut [f32], _| {
+                        println!("Output callback buffer length: {}", data.len());
                         let mut buffer = jitter_buffer_clone.lock().unwrap();
-                        if let Some(audio_data) = buffer.pop() {
-                            for (out_sample, &in_sample) in data.iter_mut().zip(audio_data.iter()) {
-                                *out_sample = in_sample;
-                            }
-                        } else {
-                            for sample in data.iter_mut() {
-                                *sample = cpal::Sample::EQUILIBRIUM;
-                            }
-                        }
+                        buffer.pop_samples(data);
                     },
                     print_stream_error,
                     None,

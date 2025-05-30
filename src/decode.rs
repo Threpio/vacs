@@ -1,13 +1,13 @@
+use anyhow::{Context, anyhow};
+use cpal::StreamConfig;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::{
     fs::File,
-    io::{Read, Cursor},
+    io::Read,
     sync::{Arc, Mutex},
     thread,
     time::Duration,
 };
-use anyhow::{anyhow, Context};
-use cpal::StreamConfig;
-use cpal::traits::{HostTrait, DeviceTrait, StreamTrait};
 
 pub fn decode() -> anyhow::Result<()> {
     // 1. Open your raw‐Opus file, which must have been written like:
@@ -15,7 +15,8 @@ pub fn decode() -> anyhow::Result<()> {
     let mut file = File::open("mic_encoded.opus")?;
 
     // 2. Set up the Opus decoder
-    let mut decoder = opus::Decoder::new(48000, opus::Channels::Mono).context("Failed to create opus encoder")?;
+    let mut decoder =
+        opus::Decoder::new(48000, opus::Channels::Mono).context("Failed to create opus encoder")?;
 
     // 3. Prepare a shared PCM buffer for the CPAL callback
     let shared_buf = Arc::new(Mutex::new(Vec::<f32>::new()));
@@ -79,14 +80,15 @@ pub fn decode() -> anyhow::Result<()> {
                     *sample = 0.0;
                 }
             }
-
         },
         err_fn,
-        None
+        None,
     )?;
 
     // 6. Play!
     stream.play()?;
     // Keep the main thread alive while playback runs
-    loop { thread::sleep(Duration::from_secs(1)); }
+    loop {
+        thread::sleep(Duration::from_secs(1));
+    }
 }
