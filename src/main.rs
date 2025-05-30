@@ -1,5 +1,3 @@
-mod decode;
-
 use anyhow::{Context, Result, anyhow};
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -77,10 +75,6 @@ impl CircularBuffer {
             self.capacity - self.read_index + self.write_index
         }
     }
-}
-
-fn amain() -> Result<()> {
-    decode::decode()
 }
 
 #[tokio::main]
