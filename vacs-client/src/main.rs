@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use clap::Parser;
 use config::{Config, Environment, File};
 use log::LevelFilter;
@@ -114,7 +114,7 @@ fn load_config() -> Result<vacs_core::config::AppConfig> {
                     .to_str()
                     .expect("Failed to get local config path"),
             )
-                .required(false),
+            .required(false),
         )
         .add_source(File::with_name("config.toml").required(false))
         // Environment variables overriding config files
