@@ -12,7 +12,7 @@ const PEER_ID: &str = "client2"; // Target peer ID for the CallOffer
 #[tokio::main]
 async fn main() {
     // Connect to the WebSocket server
-    let (mut ws_stream, response) = match connect_async(SERVER).await {
+    let (mut ws_stream, _) = match connect_async(SERVER).await {
         Ok((stream, response)) => {
             println!("Connected to server!");
             println!("Server response: {:?}", response);
