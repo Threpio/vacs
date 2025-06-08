@@ -4,7 +4,7 @@ use axum::extract::ws;
 use axum::extract::ws::WebSocket;
 use futures_util::stream::{SplitSink, SplitStream};
 use std::time::Duration;
-use vacs_shared::signaling;
+use vacs_core::signaling;
 
 pub async fn verify_token(_client_id: &str, token: &str) -> anyhow::Result<()> {
     tracing::trace!("Verifying auth token");

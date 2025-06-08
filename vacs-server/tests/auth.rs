@@ -9,7 +9,7 @@ use pretty_assertions::assert_eq;
 use std::time::Duration;
 use test_log::test;
 use tokio_tungstenite::tungstenite;
-use vacs_shared::signaling;
+use vacs_core::signaling;
 
 #[test(tokio::test)]
 async fn login() {

@@ -7,8 +7,8 @@ use std::ops::ControlFlow;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, watch};
 use tracing::Instrument;
-use vacs_shared::signaling;
-use vacs_shared::signaling::Message;
+use vacs_core::signaling;
+use vacs_core::signaling::Message;
 
 #[derive(Clone)]
 pub struct ClientSession {
@@ -153,7 +153,7 @@ mod tests {
     use axum::extract::ws::Utf8Bytes;
     use pretty_assertions::assert_eq;
     use test_log::test;
-    use vacs_shared::signaling::ClientInfo;
+    use vacs_core::signaling::ClientInfo;
 
     #[test(tokio::test)]
     async fn new_client_session() {

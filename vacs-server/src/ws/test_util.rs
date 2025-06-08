@@ -8,7 +8,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use tokio::sync::{broadcast, mpsc, watch};
-use vacs_shared::signaling::{ClientInfo, Message};
+use vacs_core::signaling::{ClientInfo, Message};
 
 pub struct MockSink {
     tx: mpsc::UnboundedSender<ws::Message>,

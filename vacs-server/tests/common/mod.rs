@@ -11,7 +11,7 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async, tungsten
 use vacs_server::app::create_app;
 use vacs_server::config::{AppConfig, AuthConfig};
 use vacs_server::state::AppState;
-use vacs_shared::signaling;
+use vacs_core::signaling;
 
 #[allow(unused)]
 pub struct TestApp {

@@ -2,7 +2,7 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
-use vacs_shared::signaling;
+use vacs_core::signaling;
 
 const SERVER: &str = "ws://127.0.0.1:3000/ws";
 const CLIENT_ID: &str = "client1"; // Unique ID for the client

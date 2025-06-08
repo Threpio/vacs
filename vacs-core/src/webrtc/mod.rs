@@ -1,7 +1,6 @@
 mod peer;
 mod receiver;
 mod sender;
-pub mod signalling;
 
 pub use peer::Peer;
 pub use peer::PeerConnectionState;

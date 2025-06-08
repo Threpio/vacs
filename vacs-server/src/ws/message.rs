@@ -2,7 +2,7 @@ use crate::ws::traits::{WebSocketSink, WebSocketStream};
 use axum::extract::ws;
 use futures_util::SinkExt;
 use futures_util::StreamExt;
-use vacs_shared::signaling;
+use vacs_core::signaling;
 
 /// Represents the outcome of [`receive_message`], indicating whether the message received should be handled, skipped or receiving errored.
 #[derive(Debug)]

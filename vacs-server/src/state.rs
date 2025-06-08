@@ -3,7 +3,7 @@ use crate::config::AppConfig;
 use crate::ws::ClientSession;
 use std::collections::HashMap;
 use tokio::sync::{RwLock, broadcast, mpsc, watch};
-use vacs_shared::signaling::{ClientInfo, Message};
+use vacs_core::signaling::{ClientInfo, Message};
 
 pub struct AppState {
     pub config: AppConfig,

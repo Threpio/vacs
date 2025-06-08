@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["vacs-client", "vacs-core", "vacs-server", "vacs-shared"]
+members = ["vacs-client", "vacs-core", "vacs-server"]
 
 [workspace.package]
 version = "0.0.0"

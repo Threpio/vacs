@@ -6,16 +6,27 @@ publish.workspace = true
 
 [lib]
 
+[features]
+audio = ["config", "dep:cpal", "dep:opus", "dep:tokio", "dep:ringbuf", "dep:bytes"]
+webrtc = ["config", "dep:webrtc", "dep:tokio", "dep:serde"]
+signaling = ["dep:serde", "dep:serde_json"]
+config = ["dep:serde"]
+vatsim = []
+client = ["audio", "webrtc", "signaling", "vatsim"]
+server = ["signaling", "vatsim"]
+default = ["signaling"]
+
 [dependencies]
 anyhow = "1.0.98"
-bytes = "1.10.1"
-cpal = "0.15.3"
+bytes = { version = "1.10.1", optional = true }
+cpal = { version = "0.16.0", optional = true }
 log = { workspace = true }
-opus = "0.3.0"
-ringbuf = "0.4.8"
-serde = { workspace = true }
-tokio = { workspace = true }
-webrtc = "0.13.0"
+opus = { version = "0.3.0", optional = true }
+ringbuf = { version = "0.4.8", optional = true }
+serde = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+webrtc = { version = "0.13.0", optional = true }
+serde_json = { version = "1.0.140", optional = true }
 
 [lints]
 workspace = true

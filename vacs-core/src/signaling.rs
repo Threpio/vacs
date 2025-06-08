@@ -139,11 +139,13 @@ pub enum Message {
 
 impl Message {
     /// Serializes a [`Message`] into a JSON string.
+    #[allow(unused)]
     pub fn serialize(message: &Self) -> serde_json::error::Result<String> {
         serde_json::to_string(message)
     }
-
+    
     /// Deserializes a JSON string into a [`Message`].
+    #[allow(unused)]
     pub fn deserialize(message: &str) -> serde_json::error::Result<Self> {
         serde_json::from_str(message)
     }

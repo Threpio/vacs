@@ -8,7 +8,7 @@ use futures_util::StreamExt;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::Instrument;
-use vacs_shared::signaling::{LoginFailureReason, Message};
+use vacs_core::signaling::{LoginFailureReason, Message};
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
