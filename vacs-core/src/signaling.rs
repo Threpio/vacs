@@ -3,6 +3,8 @@ pub mod client;
 #[cfg(feature = "signaling-client")]
 pub mod error;
 #[cfg(feature = "signaling-client")]
+pub mod matcher;
+#[cfg(feature = "signaling-client")]
 pub mod transport;
 
 use serde::{Deserialize, Serialize};

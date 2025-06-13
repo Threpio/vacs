@@ -1,5 +1,6 @@
 use crate::signaling::error::SignalingError;
-pub(crate) use crate::signaling::transport::SignalingTransport;
+use crate::signaling::matcher::ResponseMatcher;
+use crate::signaling::transport::SignalingTransport;
 use crate::signaling::{ClientInfo, Message};
 use std::time::Duration;
 use tokio::sync::watch;
@@ -7,6 +8,7 @@ use tracing::instrument;
 
 pub struct SignalingClientBuilder<T: SignalingTransport> {
     transport: T,
+    matcher: ResponseMatcher,
     login_timeout: Duration,
     shutdown_rx: watch::Receiver<()>,
 }
@@ -16,6 +18,7 @@ impl<T: SignalingTransport> SignalingClientBuilder<T> {
     pub fn new(transport: T, shutdown_rx: watch::Receiver<()>) -> Self {
         Self {
             transport,
+            matcher: ResponseMatcher::new(),
             login_timeout: Duration::from_secs(5),
             shutdown_rx,
         }
@@ -31,6 +34,7 @@ impl<T: SignalingTransport> SignalingClientBuilder<T> {
     pub fn build(self) -> SignalingClient<T> {
         SignalingClient {
             transport: self.transport,
+            matcher: self.matcher,
             login_timeout: self.login_timeout,
             shutdown_rx: self.shutdown_rx,
         }
@@ -39,6 +43,7 @@ impl<T: SignalingTransport> SignalingClientBuilder<T> {
 
 pub struct SignalingClient<T: SignalingTransport> {
     transport: T,
+    matcher: ResponseMatcher,
     login_timeout: Duration,
     shutdown_rx: watch::Receiver<()>,
 }
@@ -51,6 +56,10 @@ impl<T: SignalingTransport> SignalingClient<T> {
 
     pub fn builder(transport: T, shutdown_rx: watch::Receiver<()>) -> SignalingClientBuilder<T> {
         SignalingClientBuilder::new(transport, shutdown_rx)
+    }
+
+    pub fn matcher(&self) -> &ResponseMatcher {
+        &self.matcher
     }
 
     #[instrument(level = "debug", skip(self), err)]
