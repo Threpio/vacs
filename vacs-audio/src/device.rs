@@ -1,4 +1,4 @@
-use crate::audio::SAMPLE_RATE;
+use crate::SAMPLE_RATE;
 use crate::config::AudioDeviceConfig;
 use anyhow::Context;
 use cpal::traits::{DeviceTrait, HostTrait};

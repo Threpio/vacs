@@ -4,7 +4,7 @@ use axum::extract::ws;
 use axum::extract::ws::WebSocket;
 use futures_util::stream::{SplitSink, SplitStream};
 use std::time::Duration;
-use vacs_core::signaling;
+use vacs_protocol::{LoginFailureReason, SignalingMessage};
 
 pub async fn verify_token(_client_id: &str, token: &str) -> anyhow::Result<()> {
     tracing::trace!("Verifying auth token");
@@ -26,10 +26,10 @@ pub async fn handle_login(
     tokio::time::timeout(Duration::from_millis(auth_config.login_flow_timeout_millis), async {
         loop {
             return match receive_message(websocket_receiver).await {
-                MessageResult::ApplicationMessage(signaling::Message::Login { id, token }) => {
+                MessageResult::ApplicationMessage(SignalingMessage::Login { id, token }) => {
                     if verify_token(&id, &token).await.is_err() {
-                        let login_failure_message = signaling::Message::LoginFailure {
-                            reason: signaling::LoginFailureReason::InvalidCredentials,
+                        let login_failure_message = SignalingMessage::LoginFailure {
+                            reason: LoginFailureReason::InvalidCredentials,
                         };
                         if let Err(err) =
                             send_message(websocket_sender, login_failure_message).await
@@ -43,8 +43,8 @@ pub async fn handle_login(
                 }
                 MessageResult::ApplicationMessage(message) => {
                     tracing::debug!(msg = ?message, "Received unexpected message during login flow");
-                    let login_failure_message = signaling::Message::LoginFailure {
-                        reason: signaling::LoginFailureReason::Unauthorized,
+                    let login_failure_message = SignalingMessage::LoginFailure {
+                        reason: LoginFailureReason::Unauthorized,
                     };
                     if let Err(err) = send_message(websocket_sender, login_failure_message).await {
                         tracing::warn!(?err, "Failed to send login failure message");

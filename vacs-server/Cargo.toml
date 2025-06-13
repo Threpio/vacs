@@ -16,7 +16,7 @@ tokio-tungstenite = { workspace = true }
 serde = { workspace = true }
 config = { workspace = true }
 directories = { workspace = true }
-vacs-core = { path = "../vacs-core", features = ["server"] }
+vacs-protocol = { path = "../vacs-protocol" }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true, features = ["unstable"] }

@@ -1,16 +1,17 @@
-use crate::signaling::error::SignalingError;
-use crate::signaling::matcher::ResponseMatcher;
-use crate::signaling::transport::SignalingTransport;
-use crate::signaling::{ClientInfo, Message};
+use crate::error::SignalingError;
+use crate::matcher::ResponseMatcher;
+use crate::transport::SignalingTransport;
 use std::time::Duration;
-use tokio::sync::watch;
+use tokio::sync::{broadcast, watch};
 use tracing::instrument;
+use vacs_protocol::{ClientInfo, SignalingMessage};
 
 pub struct SignalingClientBuilder<T: SignalingTransport> {
     transport: T,
     matcher: ResponseMatcher,
     login_timeout: Duration,
     shutdown_rx: watch::Receiver<()>,
+    broadcast_tx: broadcast::Sender<SignalingMessage>,
 }
 
 impl<T: SignalingTransport> SignalingClientBuilder<T> {
@@ -21,6 +22,7 @@ impl<T: SignalingTransport> SignalingClientBuilder<T> {
             matcher: ResponseMatcher::new(),
             login_timeout: Duration::from_secs(5),
             shutdown_rx,
+            broadcast_tx: broadcast::channel(10).0,
         }
     }
 
@@ -37,6 +39,7 @@ impl<T: SignalingTransport> SignalingClientBuilder<T> {
             matcher: self.matcher,
             login_timeout: self.login_timeout,
             shutdown_rx: self.shutdown_rx,
+            broadcast_tx: self.broadcast_tx,
         }
     }
 }
@@ -46,6 +49,7 @@ pub struct SignalingClient<T: SignalingTransport> {
     matcher: ResponseMatcher,
     login_timeout: Duration,
     shutdown_rx: watch::Receiver<()>,
+    broadcast_tx: broadcast::Sender<SignalingMessage>,
 }
 
 impl<T: SignalingTransport> SignalingClient<T> {
@@ -62,8 +66,12 @@ impl<T: SignalingTransport> SignalingClient<T> {
         &self.matcher
     }
 
+    pub fn subscribe(&self) -> broadcast::Receiver<SignalingMessage> {
+        self.broadcast_tx.subscribe()
+    }
+
     #[instrument(level = "debug", skip(self), err)]
-    pub async fn send(&mut self, msg: Message) -> Result<(), SignalingError> {
+    pub async fn send(&mut self, msg: SignalingMessage) -> Result<(), SignalingError> {
         tracing::debug!("Sending message to server");
         tokio::select! {
             biased;
@@ -76,7 +84,7 @@ impl<T: SignalingTransport> SignalingClient<T> {
     }
 
     #[instrument(level = "debug", skip(self), err)]
-    pub async fn recv(&mut self) -> Result<Message, SignalingError> {
+    pub async fn recv(&mut self) -> Result<SignalingMessage, SignalingError> {
         tracing::debug!("Waiting for message from server");
         tokio::select! {
             biased;
@@ -92,7 +100,7 @@ impl<T: SignalingTransport> SignalingClient<T> {
     pub async fn recv_with_timeout(
         &mut self,
         timeout: Duration,
-    ) -> Result<Message, SignalingError> {
+    ) -> Result<SignalingMessage, SignalingError> {
         tracing::debug!("Waiting for message from server");
         let recv_result = tokio::select! {
             biased;
@@ -122,7 +130,7 @@ impl<T: SignalingTransport> SignalingClient<T> {
         token: &str,
     ) -> Result<Vec<ClientInfo>, SignalingError> {
         tracing::debug!("Sending Login message to server");
-        self.send(Message::Login {
+        self.send(SignalingMessage::Login {
             id: id.to_string(),
             token: token.to_string(),
         })
@@ -130,15 +138,15 @@ impl<T: SignalingTransport> SignalingClient<T> {
 
         tracing::debug!(login_timeout = ?self.login_timeout, "Awaiting authentication response from server");
         match self.recv_with_timeout(self.login_timeout).await? {
-            Message::ClientList { clients } => {
+            SignalingMessage::ClientList { clients } => {
                 tracing::info!(num_clients = ?clients.len(), "Login successful, received client list");
                 Ok(clients)
             }
-            Message::LoginFailure { reason } => {
+            SignalingMessage::LoginFailure { reason } => {
                 tracing::warn!(?reason, "Login failed");
                 Err(SignalingError::LoginError(reason))
             }
-            Message::Error { reason, peer_id } => {
+            SignalingMessage::Error { reason, peer_id } => {
                 tracing::error!(?reason, ?peer_id, "Server returned error");
                 Err(SignalingError::ServerError(reason))
             }
@@ -150,16 +158,64 @@ impl<T: SignalingTransport> SignalingClient<T> {
             }
         }
     }
+
+    #[instrument(level = "info", skip(self))]
+    pub async fn handle_interaction(&mut self) {
+        tracing::debug!("Handling interaction");
+
+        loop {
+            tokio::select! {
+                biased;
+
+                _ = self.shutdown_rx.changed() => {
+                    tracing::debug!("Shutdown signal received, aborting interaction handling");
+                    break;
+                }
+
+                msg = self.transport.recv() => {
+                    match msg {
+                        Ok(message) => {
+                            tracing::debug!(?message, "Received message from transport");
+                            tracing::trace!(?message, "Trying to match message against matcher");
+                            self.matcher.try_match(&message);
+                            if self.broadcast_tx.receiver_count() > 0 {
+                                tracing::trace!(?message, "Broadcasting message");
+                                if let Err(err) = self.broadcast_tx.send(message.clone()) {
+                                    tracing::warn!(?message, ?err, "Failed to broadcast message");
+                                }
+                            } else {
+                                tracing::trace!(?message, "No receivers subscribed, not broadcasting message");
+                            }
+                        }
+                        Err(err) => {
+                            match err {
+                                SignalingError::Disconnected => {
+                                    tracing::debug!("Transport disconnected, aborting interaction handling");
+                                    break;
+                                }
+                                err => {
+                                    tracing::warn!(?err, "Received error from transport, continuing");
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        tracing::debug!("Interaction handling complete");
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::signaling::transport::mock::MockTransport;
-    use crate::signaling::{ErrorReason, LoginFailureReason};
+    use crate::transport::mock::MockTransport;
     use pretty_assertions::assert_matches;
     use test_log::test;
     use tokio::sync::watch;
+    use vacs_protocol::{ErrorReason, LoginFailureReason};
 
     fn test_client_list() -> Vec<ClientInfo> {
         vec![
@@ -183,7 +239,7 @@ mod tests {
         let (mock, mut handle) = MockTransport::new();
         let (_shutdown_tx, shutdown_rx) = watch::channel(());
         let mut client = SignalingClient::new(mock, shutdown_rx);
-        let msg = Message::Login {
+        let msg = SignalingMessage::Login {
             id: "test".to_string(),
             token: "test".to_string(),
         };
@@ -200,7 +256,7 @@ mod tests {
         let (mock, _handle) = MockTransport::new();
         let (shutdown_tx, shutdown_rx) = watch::channel(());
         let mut client = SignalingClient::new(mock, shutdown_rx);
-        let msg = Message::Login {
+        let msg = SignalingMessage::Login {
             id: "test".to_string(),
             token: "test".to_string(),
         };
@@ -219,7 +275,7 @@ mod tests {
         let (mock, handle) = MockTransport::new();
         let (_shutdown_tx, shutdown_rx) = watch::channel(());
         let mut client = SignalingClient::new(mock, shutdown_rx);
-        let msg = Message::Login {
+        let msg = SignalingMessage::Login {
             id: "test".to_string(),
             token: "test".to_string(),
         };
@@ -236,7 +292,7 @@ mod tests {
         let (mock, handle) = MockTransport::new();
         let (_shutdown_tx, shutdown_rx) = watch::channel(());
         let mut client = SignalingClient::new(mock, shutdown_rx);
-        let msg = Message::ClientList {
+        let msg = SignalingMessage::ClientList {
             clients: test_client_list(),
         };
 
@@ -253,7 +309,7 @@ mod tests {
         let (mock, handle) = MockTransport::new();
         let (shutdown_tx, shutdown_rx) = watch::channel(());
         let mut client = SignalingClient::new(mock, shutdown_rx);
-        let msg = Message::Login {
+        let msg = SignalingMessage::Login {
             id: "test".to_string(),
             token: "test".to_string(),
         };
@@ -275,7 +331,7 @@ mod tests {
         let (mock, handle) = MockTransport::new();
         let (_shutdown_tx, shutdown_rx) = watch::channel(());
         let mut client = SignalingClient::new(mock, shutdown_rx);
-        let msg = Message::CallAnswer {
+        let msg = SignalingMessage::CallAnswer {
             peer_id: "client1".to_string(),
             sdp: "sdp".to_string(),
         };
@@ -307,7 +363,7 @@ mod tests {
         let (mock, handle) = MockTransport::new();
         let (shutdown_tx, shutdown_rx) = watch::channel(());
         let mut client = SignalingClient::new(mock, shutdown_rx);
-        let msg = Message::Login {
+        let msg = SignalingMessage::Login {
             id: "test".to_string(),
             token: "test".to_string(),
         };
@@ -329,7 +385,7 @@ mod tests {
         let (mock, handle) = MockTransport::new();
         let (_shutdown_tx, shutdown_rx) = watch::channel(());
         let mut client = SignalingClient::new(mock, shutdown_rx);
-        let msg = Message::Error {
+        let msg = SignalingMessage::Error {
             reason: ErrorReason::Internal("something failed".to_string()),
             peer_id: None,
         };
@@ -347,7 +403,7 @@ mod tests {
         let (mock, handle) = MockTransport::new();
         let (_shutdown_tx, shutdown_rx) = watch::channel(());
         let mut client = SignalingClient::new(mock, shutdown_rx);
-        let msg = Message::Error {
+        let msg = SignalingMessage::Error {
             reason: ErrorReason::PeerConnection,
             peer_id: Some("client1".to_string()),
         };
@@ -379,7 +435,7 @@ mod tests {
         let (_shutdown_tx, shutdown_rx) = watch::channel(());
         let mut client = SignalingClient::new(mock, shutdown_rx);
         let test_clients = test_client_list();
-        let msg = Message::ClientList {
+        let msg = SignalingMessage::ClientList {
             clients: test_clients.clone(),
         };
 
@@ -391,7 +447,7 @@ mod tests {
         assert_eq!(login_result.unwrap(), test_clients);
 
         let sent_message = handle.outgoing_rx.recv().await;
-        assert_matches!(sent_message, Some(Message::Login { ref id, ref token }) if id == "client1" && token == "token1");
+        assert_matches!(sent_message, Some(SignalingMessage::Login { ref id, ref token }) if id == "client1" && token == "token1");
     }
 
     #[test(tokio::test)]
@@ -407,7 +463,7 @@ mod tests {
         assert_matches!(login_result, Err(SignalingError::Timeout(_)));
 
         let sent_message = handle.outgoing_rx.recv().await;
-        assert_matches!(sent_message, Some(Message::Login { ref id, ref token }) if id == "client1" && token == "token1");
+        assert_matches!(sent_message, Some(SignalingMessage::Login { ref id, ref token }) if id == "client1" && token == "token1");
     }
 
     #[test(tokio::test)]
@@ -415,7 +471,7 @@ mod tests {
         let (mock, mut handle) = MockTransport::new();
         let (_shutdown_tx, shutdown_rx) = watch::channel(());
         let mut client = SignalingClient::new(mock, shutdown_rx);
-        let msg = Message::LoginFailure {
+        let msg = SignalingMessage::LoginFailure {
             reason: LoginFailureReason::Unauthorized,
         };
 
@@ -430,7 +486,7 @@ mod tests {
         );
 
         let sent_message = handle.outgoing_rx.recv().await;
-        assert_matches!(sent_message, Some(Message::Login { ref id, ref token }) if id == "client1" && token == "token1");
+        assert_matches!(sent_message, Some(SignalingMessage::Login { ref id, ref token }) if id == "client1" && token == "token1");
     }
 
     #[test(tokio::test)]
@@ -438,7 +494,7 @@ mod tests {
         let (mock, mut handle) = MockTransport::new();
         let (_shutdown_tx, shutdown_rx) = watch::channel(());
         let mut client = SignalingClient::new(mock, shutdown_rx);
-        let msg = Message::LoginFailure {
+        let msg = SignalingMessage::LoginFailure {
             reason: LoginFailureReason::InvalidCredentials,
         };
 
@@ -455,7 +511,7 @@ mod tests {
         );
 
         let sent_message = handle.outgoing_rx.recv().await;
-        assert_matches!(sent_message, Some(Message::Login { ref id, ref token }) if id == "client1" && token == "token1");
+        assert_matches!(sent_message, Some(SignalingMessage::Login { ref id, ref token }) if id == "client1" && token == "token1");
     }
 
     #[test(tokio::test)]
@@ -463,7 +519,7 @@ mod tests {
         let (mock, mut handle) = MockTransport::new();
         let (_shutdown_tx, shutdown_rx) = watch::channel(());
         let mut client = SignalingClient::new(mock, shutdown_rx);
-        let msg = Message::LoginFailure {
+        let msg = SignalingMessage::LoginFailure {
             reason: LoginFailureReason::DuplicateId,
         };
 
@@ -478,7 +534,7 @@ mod tests {
         );
 
         let sent_message = handle.outgoing_rx.recv().await;
-        assert_matches!(sent_message, Some(Message::Login { ref id, ref token }) if id == "client1" && token == "token1");
+        assert_matches!(sent_message, Some(SignalingMessage::Login { ref id, ref token }) if id == "client1" && token == "token1");
     }
 
     #[test(tokio::test)]
@@ -486,7 +542,7 @@ mod tests {
         let (mock, mut handle) = MockTransport::new();
         let (_shutdown_tx, shutdown_rx) = watch::channel(());
         let mut client = SignalingClient::new(mock, shutdown_rx);
-        let msg = Message::CallAnswer {
+        let msg = SignalingMessage::CallAnswer {
             peer_id: "client1".to_string(),
             sdp: "sdp".to_string(),
         };
@@ -499,7 +555,7 @@ mod tests {
         assert_matches!(login_result, Err(SignalingError::ProtocolError(_)));
 
         let sent_message = handle.outgoing_rx.recv().await;
-        assert_matches!(sent_message, Some(Message::Login { ref id, ref token }) if id == "client1" && token == "token1");
+        assert_matches!(sent_message, Some(SignalingMessage::Login { ref id, ref token }) if id == "client1" && token == "token1");
     }
 
     #[test(tokio::test)]
@@ -507,7 +563,7 @@ mod tests {
         let (mock, mut handle) = MockTransport::new();
         let (_shutdown_tx, shutdown_rx) = watch::channel(());
         let mut client = SignalingClient::new(mock, shutdown_rx);
-        let msg = Message::Error {
+        let msg = SignalingMessage::Error {
             reason: ErrorReason::Internal("something failed".to_string()),
             peer_id: None,
         };
@@ -520,6 +576,6 @@ mod tests {
         assert_matches!(login_result, Err(SignalingError::ServerError(_)));
 
         let sent_message = handle.outgoing_rx.recv().await;
-        assert_matches!(sent_message, Some(Message::Login { ref id, ref token }) if id == "client1" && token == "token1");
+        assert_matches!(sent_message, Some(SignalingMessage::Login { ref id, ref token }) if id == "client1" && token == "token1");
     }
 }

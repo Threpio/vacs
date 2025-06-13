@@ -1,6 +1,6 @@
-use crate::signaling::{ErrorReason, LoginFailureReason};
 use thiserror::Error;
 use tokio_tungstenite::tungstenite;
+use vacs_protocol::{ErrorReason, LoginFailureReason};
 
 #[derive(Debug, Error)]
 pub enum SignalingError {

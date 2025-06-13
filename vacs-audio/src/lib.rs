@@ -1,6 +1,8 @@
+pub mod config;
 mod device;
 pub mod input;
 pub mod output;
+
 pub use device::Device;
 pub use device::DeviceType;
 

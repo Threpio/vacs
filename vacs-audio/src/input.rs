@@ -1,4 +1,4 @@
-use crate::audio::{Device, EncodedAudioFrame, FRAME_SIZE, SAMPLE_RATE};
+use crate::{Device, EncodedAudioFrame, FRAME_SIZE, SAMPLE_RATE};
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use cpal::traits::{DeviceTrait, StreamTrait};

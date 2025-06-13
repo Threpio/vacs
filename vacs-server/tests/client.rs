@@ -6,7 +6,7 @@ use std::time::Duration;
 use test_log::test;
 use tokio_tungstenite::tungstenite;
 use tokio_tungstenite::tungstenite::Bytes;
-use vacs_core::signaling::Message;
+use vacs_protocol::SignalingMessage;
 
 #[test(tokio::test)]
 async fn client_connected() -> anyhow::Result<()> {
@@ -32,7 +32,7 @@ async fn client_connected() -> anyhow::Result<()> {
             .collect();
 
         for message in messages {
-            if let Message::ClientConnected { client } = message {
+            if let SignalingMessage::ClientConnected { client } = message {
                 assert!(
                     expected_ids.contains(&client.id),
                     "Unexpected client ID: {:?}, expected one of: {:?}",
@@ -57,7 +57,7 @@ async fn client_disconnected() -> anyhow::Result<()> {
     clients
         .last_mut()
         .unwrap()
-        .send(Message::Logout)
+        .send(SignalingMessage::Logout)
         .await
         .expect("Failed to send logout message");
 
@@ -85,7 +85,7 @@ async fn client_disconnected() -> anyhow::Result<()> {
 
         for message in messages {
             match message {
-                Message::ClientConnected { client } => {
+                SignalingMessage::ClientConnected { client } => {
                     assert!(
                         expected_ids.contains(&client.id),
                         "Unexpected client ID: {:?}, expected one of: {:?}",
@@ -93,7 +93,7 @@ async fn client_disconnected() -> anyhow::Result<()> {
                         expected_ids
                     );
                 }
-                Message::ClientDisconnected { id } => {
+                SignalingMessage::ClientDisconnected { id } => {
                     assert_eq!(
                         id,
                         format!("client{}", initial_client_count),
@@ -137,7 +137,7 @@ async fn client_dropped() -> anyhow::Result<()> {
 
         for message in messages {
             match message {
-                Message::ClientConnected { client } => {
+                SignalingMessage::ClientConnected { client } => {
                     assert!(
                         expected_ids.contains(&client.id),
                         "Unexpected client ID: {:?}, expected one of: {:?}",
@@ -145,7 +145,7 @@ async fn client_dropped() -> anyhow::Result<()> {
                         expected_ids
                     );
                 }
-                Message::ClientDisconnected { id } => {
+                SignalingMessage::ClientDisconnected { id } => {
                     assert_eq!(
                         id,
                         format!("client{}", initial_client_count),

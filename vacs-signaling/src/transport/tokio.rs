@@ -1,11 +1,11 @@
-use crate::signaling::Message;
-use crate::signaling::error::SignalingError;
-use crate::signaling::transport::SignalingTransport;
+use crate::error::SignalingError;
+use crate::transport::SignalingTransport;
 use async_trait::async_trait;
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, tungstenite};
+use vacs_protocol::SignalingMessage;
 
 pub struct TokioTransport {
     websocket_tx: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, tungstenite::Message>,
@@ -36,8 +36,8 @@ impl TokioTransport {
 #[async_trait]
 impl SignalingTransport for TokioTransport {
     #[tracing::instrument(level = "debug", skip(self, msg))]
-    async fn send(&mut self, msg: Message) -> Result<(), SignalingError> {
-        let serialized = Message::serialize(&msg).map_err(|err| {
+    async fn send(&mut self, msg: SignalingMessage) -> Result<(), SignalingError> {
+        let serialized = SignalingMessage::serialize(&msg).map_err(|err| {
             tracing::warn!(?err, "Failed to serialize message");
             SignalingError::SerializationError(err)
         })?;
@@ -55,12 +55,12 @@ impl SignalingTransport for TokioTransport {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn recv(&mut self) -> Result<Message, SignalingError> {
+    async fn recv(&mut self) -> Result<SignalingMessage, SignalingError> {
         while let Some(msg) = self.websocket_rx.next().await {
             match msg {
                 Ok(tungstenite::Message::Text(text)) => {
                     tracing::debug!("Received message");
-                    return Message::deserialize(&text).map_err(|err| {
+                    return SignalingMessage::deserialize(&text).map_err(|err| {
                         tracing::warn!(?err, "Failed to deserialize message");
                         SignalingError::SerializationError(err)
                     });

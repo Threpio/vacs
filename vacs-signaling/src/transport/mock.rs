@@ -1,16 +1,17 @@
-use crate::signaling::Message;
-use crate::signaling::transport::{SignalingError, SignalingTransport};
+use crate::error::SignalingError;
+use crate::transport::SignalingTransport;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
+use vacs_protocol::SignalingMessage;
 
 pub struct MockHandle {
-    pub outgoing_rx: mpsc::Receiver<Message>,
-    pub incoming_tx: mpsc::Sender<Message>,
+    pub outgoing_rx: mpsc::Receiver<SignalingMessage>,
+    pub incoming_tx: mpsc::Sender<SignalingMessage>,
 }
 
 pub struct MockTransport {
-    outgoing: mpsc::Sender<Message>,
-    incoming: mpsc::Receiver<Message>,
+    outgoing: mpsc::Sender<SignalingMessage>,
+    incoming: mpsc::Receiver<SignalingMessage>,
 }
 
 impl MockTransport {
@@ -36,19 +37,19 @@ impl MockTransport {
 #[async_trait]
 impl SignalingTransport for MockTransport {
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn send(&mut self, msg: Message) -> Result<(), SignalingError> {
-        tracing::debug!("Sending message");
+    async fn send(&mut self, msg: SignalingMessage) -> Result<(), SignalingError> {
+        tracing::debug!("Sending SignalingMessage");
         self.outgoing.send(msg).await.map_err(|err| {
-            tracing::warn!(?err, "Failed to send message");
+            tracing::warn!(?err, "Failed to send SignalingMessage");
             SignalingError::Transport(anyhow::anyhow!(err))
         })
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn recv(&mut self) -> Result<Message, SignalingError> {
+    async fn recv(&mut self) -> Result<SignalingMessage, SignalingError> {
         match self.incoming.recv().await {
             Some(msg) => {
-                tracing::debug!(?msg, "Received message");
+                tracing::debug!(?msg, "Received SignalingMessage");
                 Ok(msg)
             }
             None => {

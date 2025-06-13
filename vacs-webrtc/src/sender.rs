@@ -1,8 +1,8 @@
-use crate::audio::{EncodedAudioFrame, FRAME_DURATION_MS};
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
+use vacs_audio::{EncodedAudioFrame, FRAME_DURATION_MS};
 use webrtc::media::Sample;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 

@@ -3,13 +3,13 @@ use crate::config::AppConfig;
 use crate::ws::ClientSession;
 use std::collections::HashMap;
 use tokio::sync::{RwLock, broadcast, mpsc, watch};
-use vacs_core::signaling::{ClientInfo, ErrorReason, Message};
+use vacs_protocol::{ClientInfo, ErrorReason, SignalingMessage};
 
 pub struct AppState {
     pub config: AppConfig,
     /// Key: CID
     clients: RwLock<HashMap<String, ClientSession>>,
-    broadcast_tx: broadcast::Sender<Message>,
+    broadcast_tx: broadcast::Sender<SignalingMessage>,
     shutdown_rx: watch::Receiver<()>,
 }
 
@@ -24,14 +24,16 @@ impl AppState {
         }
     }
 
-    pub fn get_client_receivers(&self) -> (broadcast::Receiver<Message>, watch::Receiver<()>) {
+    pub fn get_client_receivers(
+        &self,
+    ) -> (broadcast::Receiver<SignalingMessage>, watch::Receiver<()>) {
         (self.broadcast_tx.subscribe(), self.shutdown_rx.clone())
     }
 
     pub async fn register_client(
         &self,
         client_id: &str,
-    ) -> anyhow::Result<(ClientSession, mpsc::Receiver<Message>)> {
+    ) -> anyhow::Result<(ClientSession, mpsc::Receiver<SignalingMessage>)> {
         tracing::trace!("Registering client");
 
         if self.clients.read().await.contains_key(client_id) {
@@ -54,7 +56,7 @@ impl AppState {
 
         if self.broadcast_tx.receiver_count() > 0 {
             tracing::trace!("Broadcasting client connected message");
-            if let Err(err) = self.broadcast_tx.send(Message::ClientConnected {
+            if let Err(err) = self.broadcast_tx.send(SignalingMessage::ClientConnected {
                 client: client.get_client_info().clone(),
             }) {
                 tracing::warn!(?err, "Failed to broadcast client connected message");
@@ -79,9 +81,12 @@ impl AppState {
 
         if self.broadcast_tx.receiver_count() > 1 {
             tracing::trace!("Broadcasting client disconnected message");
-            if let Err(err) = self.broadcast_tx.send(Message::ClientDisconnected {
-                id: client_id.to_string(),
-            }) {
+            if let Err(err) = self
+                .broadcast_tx
+                .send(SignalingMessage::ClientDisconnected {
+                    id: client_id.to_string(),
+                })
+            {
                 tracing::warn!(?err, "Failed to broadcast client disconnected message");
             }
         } else {
@@ -111,7 +116,7 @@ impl AppState {
         &self,
         client: &ClientSession,
         peer_id: &str,
-        message: Message,
+        message: SignalingMessage,
     ) {
         match self.get_client(peer_id).await {
             Some(peer) => {
@@ -119,7 +124,7 @@ impl AppState {
                 if let Err(err) = peer.send_message(message).await {
                     tracing::warn!(?err, "Failed to send message to peer");
                     if let Err(e) = client
-                        .send_message(Message::Error {
+                        .send_message(SignalingMessage::Error {
                             reason: ErrorReason::PeerConnection,
                             peer_id: Some(peer_id.to_string()),
                         })
@@ -132,7 +137,7 @@ impl AppState {
             None => {
                 tracing::warn!(peer_id, "Peer not found");
                 if let Err(err) = client
-                    .send_message(Message::PeerNotFound {
+                    .send_message(SignalingMessage::PeerNotFound {
                         peer_id: peer_id.to_string(),
                     })
                     .await

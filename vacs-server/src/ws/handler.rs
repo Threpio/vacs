@@ -8,7 +8,7 @@ use futures_util::StreamExt;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::Instrument;
-use vacs_core::signaling::{LoginFailureReason, Message};
+use vacs_protocol::{LoginFailureReason, SignalingMessage};
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
@@ -41,7 +41,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         Err(_) => {
             if let Err(err) = send_message(
                 &mut websocket_tx,
-                Message::LoginFailure {
+                SignalingMessage::LoginFailure {
                     reason: LoginFailureReason::DuplicateId,
                 },
             )

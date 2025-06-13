@@ -9,19 +9,23 @@ name = "ws"
 path = "src/ws.rs"
 
 [dependencies]
-vacs-core = { path = "../vacs-core", features = ["client"] }
-anyhow = "1.0.98"
+anyhow = { workspace = true }
 base64 = "0.22.1"
 clap = { version = "4.5.39", features = ["derive"] }
-tokio = { workspace = true }
 config = { workspace = true }
-webrtc = "0.13.0"
 directories = { workspace = true }
 futures-util = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
 tokio-tungstenite = "0.26.2"
-tungstenite = "0.26.2"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+tungstenite = "0.26.2"
+vacs-audio = { path = "../vacs-audio" }
+vacs-protocol = { path = "../vacs-protocol" }
+vacs-signaling = { path = "../vacs-signaling" }
+vacs-webrtc = { path = "../vacs-webrtc" }
+webrtc = "0.13.0"
 
 [lints]
 workspace = true

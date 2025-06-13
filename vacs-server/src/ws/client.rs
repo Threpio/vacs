@@ -7,17 +7,16 @@ use std::ops::ControlFlow;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, watch};
 use tracing::Instrument;
-use vacs_core::signaling;
-use vacs_core::signaling::Message;
+use vacs_protocol::{ClientInfo, SignalingMessage};
 
 #[derive(Clone)]
 pub struct ClientSession {
-    client_info: signaling::ClientInfo,
-    tx: mpsc::Sender<Message>,
+    client_info: ClientInfo,
+    tx: mpsc::Sender<SignalingMessage>,
 }
 
 impl ClientSession {
-    pub fn new(client_info: signaling::ClientInfo, tx: mpsc::Sender<Message>) -> Self {
+    pub fn new(client_info: ClientInfo, tx: mpsc::Sender<SignalingMessage>) -> Self {
         Self { client_info, tx }
     }
 
@@ -25,11 +24,11 @@ impl ClientSession {
         &self.client_info.id
     }
 
-    pub fn get_client_info(&self) -> &signaling::ClientInfo {
+    pub fn get_client_info(&self) -> &ClientInfo {
         &self.client_info
     }
 
-    pub async fn send_message(&self, message: Message) -> anyhow::Result<()> {
+    pub async fn send_message(&self, message: SignalingMessage) -> anyhow::Result<()> {
         self.tx
             .send(message)
             .await
@@ -41,15 +40,17 @@ impl ClientSession {
         app_state: &Arc<AppState>,
         mut websocket_rx: R,
         mut websocket_tx: T,
-        broadcast_rx: &mut broadcast::Receiver<Message>,
-        rx: &mut mpsc::Receiver<Message>,
+        broadcast_rx: &mut broadcast::Receiver<SignalingMessage>,
+        rx: &mut mpsc::Receiver<SignalingMessage>,
         shutdown_rx: &mut watch::Receiver<()>,
     ) {
         tracing::debug!("Starting to handle client interaction");
 
         tracing::trace!("Sending initial client list");
         let clients = app_state.list_clients().await;
-        if let Err(err) = send_message(&mut websocket_tx, Message::ClientList { clients }).await {
+        if let Err(err) =
+            send_message(&mut websocket_tx, SignalingMessage::ClientList { clients }).await
+        {
             tracing::warn!(?err, "Failed to send initial client list");
         }
 
@@ -153,7 +154,7 @@ mod tests {
     use axum::extract::ws::Utf8Bytes;
     use pretty_assertions::assert_eq;
     use test_log::test;
-    use vacs_core::signaling::ClientInfo;
+    use vacs_protocol::ClientInfo;
 
     #[test(tokio::test)]
     async fn new_client_session() {
@@ -177,7 +178,7 @@ mod tests {
         let (tx, mut rx) = mpsc::channel(10);
         let session = ClientSession::new(client_info, tx);
 
-        let message = Message::ClientList {
+        let message = SignalingMessage::ClientList {
             clients: vec![ClientInfo {
                 id: "client2".to_string(),
                 display_name: "Client 2".to_string(),
@@ -200,7 +201,7 @@ mod tests {
         let session = ClientSession::new(client_info, tx.clone());
         drop(tx); // Drop the sender to simulate the client disconnecting
 
-        let message = Message::ClientList {
+        let message = SignalingMessage::ClientList {
             clients: vec![ClientInfo {
                 id: "client2".to_string(),
                 display_name: "Client 2".to_string(),
@@ -261,7 +262,7 @@ mod tests {
         let call_offer = client2_rx.recv().await.unwrap();
         assert_eq!(
             call_offer,
-            Message::CallOffer {
+            SignalingMessage::CallOffer {
                 peer_id: "client1".to_string(),
                 sdp: "sdp1".to_string()
             }

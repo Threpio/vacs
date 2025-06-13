@@ -4,46 +4,48 @@ use crate::ws::message::send_message;
 use crate::ws::traits::WebSocketSink;
 use std::ops::ControlFlow;
 use std::sync::Arc;
-use vacs_core::signaling::Message;
+use vacs_protocol::SignalingMessage;
 
 pub async fn handle_application_message<T: WebSocketSink>(
     state: &Arc<AppState>,
     client: &ClientSession,
     websocket_tx: &mut T,
-    message: Message,
+    message: SignalingMessage,
 ) -> ControlFlow<(), ()> {
     tracing::trace!(?message, "Handling application message");
 
     match message {
-        Message::ListClients => {
+        SignalingMessage::ListClients => {
             tracing::trace!("Returning list of clients");
             let clients = state.list_clients().await;
-            if let Err(err) = send_message(websocket_tx, Message::ClientList { clients }).await {
+            if let Err(err) =
+                send_message(websocket_tx, SignalingMessage::ClientList { clients }).await
+            {
                 tracing::warn!(?err, "Failed to send client list");
             }
             ControlFlow::Continue(())
         }
-        Message::Logout => {
+        SignalingMessage::Logout => {
             tracing::trace!("Logging out client");
             ControlFlow::Break(())
         }
-        Message::CallOffer { peer_id, sdp } => {
+        SignalingMessage::CallOffer { peer_id, sdp } => {
             handle_call_offer(&state, &client, &peer_id, &sdp).await;
             ControlFlow::Continue(())
         }
-        Message::CallAnswer { peer_id, sdp } => {
+        SignalingMessage::CallAnswer { peer_id, sdp } => {
             handle_call_answer(&state, &client, &peer_id, &sdp).await;
             ControlFlow::Continue(())
         }
-        Message::CallReject { peer_id } => {
+        SignalingMessage::CallReject { peer_id } => {
             handle_call_reject(&state, &client, &peer_id).await;
             ControlFlow::Continue(())
         }
-        Message::CallIceCandidate { peer_id, candidate } => {
+        SignalingMessage::CallIceCandidate { peer_id, candidate } => {
             handle_call_ice_candidate(&state, &client, &peer_id, &candidate).await;
             ControlFlow::Continue(())
         }
-        Message::CallEnd { peer_id } => {
+        SignalingMessage::CallEnd { peer_id } => {
             handle_call_end(&state, &client, &peer_id).await;
             ControlFlow::Continue(())
         }
@@ -57,7 +59,7 @@ async fn handle_call_offer(state: &AppState, client: &ClientSession, peer_id: &s
         .send_message_to_peer(
             client,
             peer_id,
-            Message::CallOffer {
+            SignalingMessage::CallOffer {
                 peer_id: client.get_id().to_string(),
                 sdp: sdp.to_string(),
             },
@@ -71,7 +73,7 @@ async fn handle_call_answer(state: &AppState, client: &ClientSession, peer_id: &
         .send_message_to_peer(
             client,
             peer_id,
-            Message::CallAnswer {
+            SignalingMessage::CallAnswer {
                 peer_id: client.get_id().to_string(),
                 sdp: sdp.to_string(),
             },
@@ -85,7 +87,7 @@ async fn handle_call_reject(state: &AppState, client: &ClientSession, peer_id: &
         .send_message_to_peer(
             client,
             peer_id,
-            Message::CallReject {
+            SignalingMessage::CallReject {
                 peer_id: client.get_id().to_string(),
             },
         )
@@ -103,7 +105,7 @@ async fn handle_call_ice_candidate(
         .send_message_to_peer(
             client,
             peer_id,
-            Message::CallIceCandidate {
+            SignalingMessage::CallIceCandidate {
                 peer_id: client.get_id().to_string(),
                 candidate: candidate.to_string(),
             },
@@ -117,7 +119,7 @@ async fn handle_call_end(state: &AppState, client: &ClientSession, peer_id: &str
         .send_message_to_peer(
             client,
             peer_id,
-            Message::CallEnd {
+            SignalingMessage::CallEnd {
                 peer_id: client.get_id().to_string(),
             },
         )
@@ -132,7 +134,7 @@ mod tests {
     use axum::extract::ws::Utf8Bytes;
     use pretty_assertions::assert_eq;
     use test_log::test;
-    use vacs_core::signaling::LoginFailureReason;
+    use vacs_protocol::LoginFailureReason;
 
     #[test(tokio::test)]
     async fn handle_application_message_list_clients() {
@@ -143,7 +145,7 @@ mod tests {
             &setup.app_state,
             &setup.session,
             &mut setup.mock_sink,
-            Message::ListClients,
+            SignalingMessage::ListClients,
         )
         .await;
         assert_eq!(control_flow, ControlFlow::Continue(()));
@@ -169,7 +171,7 @@ mod tests {
             &setup.app_state,
             &setup.session,
             &mut setup.mock_sink,
-            Message::Logout,
+            SignalingMessage::Logout,
         )
         .await;
         assert_eq!(control_flow, ControlFlow::Break(()));
@@ -184,7 +186,7 @@ mod tests {
             &setup.app_state,
             &setup.session,
             &mut setup.mock_sink,
-            Message::CallOffer {
+            SignalingMessage::CallOffer {
                 peer_id: "client2".to_string(),
                 sdp: "sdp1".to_string(),
             },
@@ -201,7 +203,7 @@ mod tests {
             .expect("Failed to receive message");
         assert_eq!(
             message,
-            Message::CallOffer {
+            SignalingMessage::CallOffer {
                 peer_id: "client1".to_string(),
                 sdp: "sdp1".to_string()
             }
@@ -216,7 +218,7 @@ mod tests {
             &setup.app_state,
             &setup.session,
             &mut setup.mock_sink,
-            Message::LoginFailure {
+            SignalingMessage::LoginFailure {
                 reason: LoginFailureReason::DuplicateId,
             },
         )

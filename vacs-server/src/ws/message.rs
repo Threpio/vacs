@@ -2,13 +2,13 @@ use crate::ws::traits::{WebSocketSink, WebSocketStream};
 use axum::extract::ws;
 use futures_util::SinkExt;
 use futures_util::StreamExt;
-use vacs_core::signaling;
+use vacs_protocol::SignalingMessage;
 
 /// Represents the outcome of [`receive_message`], indicating whether the message received should be handled, skipped or receiving errored.
 #[derive(Debug)]
 pub enum MessageResult {
     /// A valid application-message that can be processed.
-    ApplicationMessage(signaling::Message),
+    ApplicationMessage(SignalingMessage),
     /// A control message (e.g., Ping, Pong) that should be skipped.
     ControlMessage,
     /// The client has disconnected.
@@ -33,9 +33,9 @@ impl PartialEq for MessageResult {
 
 pub async fn send_message<T: WebSocketSink>(
     websocket_tx: &mut T,
-    message: signaling::Message,
+    message: SignalingMessage,
 ) -> anyhow::Result<()> {
-    let serialized_message = signaling::Message::serialize(&message)
+    let serialized_message = SignalingMessage::serialize(&message)
         .map_err(|e| anyhow::anyhow!(e).context("Failed to serialize message"))?;
     websocket_tx
         .send(ws::Message::from(serialized_message))
@@ -47,7 +47,7 @@ pub async fn send_message<T: WebSocketSink>(
 pub async fn receive_message<R: WebSocketStream>(websocket_rx: &mut R) -> MessageResult {
     match websocket_rx.next().await {
         Some(Ok(ws::Message::Text(raw_message))) => {
-            match signaling::Message::deserialize(&raw_message) {
+            match SignalingMessage::deserialize(&raw_message) {
                 Ok(message) => MessageResult::ApplicationMessage(message),
                 Err(err) => MessageResult::Error(
                     anyhow::anyhow!(err).context("Failed to deserialize message"),
@@ -84,14 +84,15 @@ mod tests {
     use test_log::test;
     use tokio::sync::{Mutex, mpsc};
     use tokio_tungstenite::tungstenite;
+    use vacs_protocol::ClientInfo;
 
     #[test(tokio::test)]
     async fn send_single_message() {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let mut mock_sink = MockSink::new(tx);
 
-        let message = signaling::Message::ClientConnected {
-            client: signaling::ClientInfo {
+        let message = SignalingMessage::ClientConnected {
+            client: ClientInfo {
                 id: "client1".to_string(),
                 display_name: "Client 1".to_string(),
             },
@@ -101,7 +102,7 @@ mod tests {
 
         if let Some(sent_message) = rx.recv().await {
             if let ws::Message::Text(serialized_message) = sent_message {
-                let deserialized_message = signaling::Message::deserialize(&serialized_message)
+                let deserialized_message = SignalingMessage::deserialize(&serialized_message)
                     .expect("Failed to deserialize message");
                 assert_eq!(deserialized_message, message);
             } else {
@@ -118,12 +119,12 @@ mod tests {
         let mut mock_sink = MockSink::new(tx);
 
         let messages = vec![
-            signaling::Message::Login {
+            SignalingMessage::Login {
                 id: "client1".to_string(),
                 token: "token1".to_string(),
             },
-            signaling::Message::ListClients,
-            signaling::Message::Logout,
+            SignalingMessage::ListClients,
+            SignalingMessage::Logout,
         ];
         for message in &messages {
             assert!(send_message(&mut mock_sink, message.clone()).await.is_ok());
@@ -133,7 +134,7 @@ mod tests {
             let sent = rx.recv().await.expect("No message received");
             match sent {
                 ws::Message::Text(raw_message) => {
-                    let message = signaling::Message::deserialize(&raw_message)
+                    let message = SignalingMessage::deserialize(&raw_message)
                         .expect("Failed to deserialize message");
                     assert_eq!(message, expected);
                 }
@@ -148,12 +149,12 @@ mod tests {
         let mock_sink = Arc::new(Mutex::new(MockSink::new(tx)));
 
         let messages = vec![
-            signaling::Message::Login {
+            SignalingMessage::Login {
                 id: "client1".to_string(),
                 token: "token1".to_string(),
             },
-            signaling::Message::ListClients,
-            signaling::Message::Logout,
+            SignalingMessage::ListClients,
+            SignalingMessage::Logout,
         ];
 
         let mut tasks = vec![];
@@ -177,7 +178,7 @@ mod tests {
         for _ in 0..messages.len() {
             let msg = rx.recv().await.expect("Expected a message");
             if let ws::Message::Text(raw_message) = msg {
-                let message = signaling::Message::deserialize(&raw_message)
+                let message = SignalingMessage::deserialize(&raw_message)
                     .expect("Failed to deserialize message");
                 sent.push(message);
             }
@@ -195,8 +196,8 @@ mod tests {
         drop(rx); // Drop the receiver to simulate the sink being disconnected.
         let mut mock_sink = MockSink::new(tx);
 
-        let message = signaling::Message::ClientConnected {
-            client: signaling::ClientInfo {
+        let message = SignalingMessage::ClientConnected {
+            client: ClientInfo {
                 id: "client1".to_string(),
                 display_name: "Client 1".to_string(),
             },
@@ -219,7 +220,7 @@ mod tests {
 
         assert_eq!(
             result,
-            MessageResult::ApplicationMessage(signaling::Message::Login {
+            MessageResult::ApplicationMessage(SignalingMessage::Login {
                 id: "client1".to_string(),
                 token: "token1".to_string()
             })
@@ -240,18 +241,18 @@ mod tests {
 
         assert_eq!(
             receive_message(&mut mock_stream).await,
-            MessageResult::ApplicationMessage(signaling::Message::Login {
+            MessageResult::ApplicationMessage(SignalingMessage::Login {
                 id: "client1".to_string(),
                 token: "token1".to_string()
             })
         );
         assert_eq!(
             receive_message(&mut mock_stream).await,
-            MessageResult::ApplicationMessage(signaling::Message::Logout)
+            MessageResult::ApplicationMessage(SignalingMessage::Logout)
         );
         assert_eq!(
             receive_message(&mut mock_stream).await,
-            MessageResult::ApplicationMessage(signaling::Message::CallOffer {
+            MessageResult::ApplicationMessage(SignalingMessage::CallOffer {
                 peer_id: "client1".to_string(),
                 sdp: "sdp1".to_string()
             })
@@ -298,7 +299,7 @@ mod tests {
         for _ in 0..2 {
             assert_eq!(
                 receive_message(&mut mock_stream).await,
-                MessageResult::ApplicationMessage(signaling::Message::Login {
+                MessageResult::ApplicationMessage(SignalingMessage::Login {
                     id: "client1".to_string(),
                     token: "token1".to_string()
                 })
@@ -358,7 +359,7 @@ mod tests {
         );
         assert_eq!(
             receive_message(&mut mock_stream).await,
-            MessageResult::ApplicationMessage(signaling::Message::Logout)
+            MessageResult::ApplicationMessage(SignalingMessage::Logout)
         );
         assert_eq!(
             receive_message(&mut mock_stream).await,

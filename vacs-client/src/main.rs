@@ -1,13 +1,16 @@
+mod config;
+
+use crate::config::AppConfig;
+use ::config::{Config, Environment, File};
 use anyhow::{Context, Result};
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use clap::Parser;
-use config::{Config, Environment, File};
 use std::io;
 use tokio::sync::{mpsc, watch};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use vacs_core::audio;
+use vacs_audio::{Device, DeviceType};
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
 #[tokio::main]
@@ -18,10 +21,10 @@ async fn main() -> Result<()> {
 
     tracing::trace!(?config, "Parsed config");
 
-    let input_device = audio::Device::new(&config.audio.input, audio::DeviceType::Input)?;
-    let output_device = audio::Device::new(&config.audio.output, audio::DeviceType::Output)?;
+    let input_device = Device::new(&config.audio.input, DeviceType::Input)?;
+    let output_device = Device::new(&config.audio.output, DeviceType::Output)?;
 
-    let mut peer = vacs_core::webrtc::Peer::new(config.webrtc)
+    let mut peer = vacs_webrtc::Peer::new(config.webrtc)
         .await
         .context("Failed to create webrtc peer")?;
 
@@ -52,16 +55,16 @@ async fn main() -> Result<()> {
         println!("Copy answer SDP: {}", BASE64_STANDARD.encode(answer.sdp));
     }
 
-    let (input_tx, input_rx) = mpsc::channel::<audio::EncodedAudioFrame>(32);
-    let (output_tx, output_rx) = mpsc::channel::<audio::EncodedAudioFrame>(32);
+    let (input_tx, input_rx) = mpsc::channel::<vacs_audio::EncodedAudioFrame>(32);
+    let (output_tx, output_rx) = mpsc::channel::<vacs_audio::EncodedAudioFrame>(32);
 
     peer.start(input_rx, output_tx)
         .await
         .context("Failed to start peer")?;
 
-    let _input_stream = audio::input::start_capture(&input_device, input_tx)?;
+    let _input_stream = vacs_audio::input::start_capture(&input_device, input_tx)?;
 
-    let _output_stream = audio::output::start_playback(&output_device, output_rx)?;
+    let _output_stream = vacs_audio::output::start_playback(&output_device, output_rx)?;
 
     let (_done_tx, mut done_rx) = watch::channel(());
 
@@ -95,11 +98,9 @@ fn parse_args() -> CliArgs {
     CliArgs::parse()
 }
 
-fn load_config() -> Result<vacs_core::config::AppConfig> {
+fn load_config() -> Result<AppConfig> {
     let settings = Config::builder()
         // Defaults
-        .set_default("api.url", "http://localhost:8080")?
-        .set_default("api.key", "supersikrit")?
         .set_default("webrtc.ice_servers", vec!["stun:stun.l.google.com:19302"])?
         .set_default("audio.input.channels", 1)?
         .set_default("audio.output.channels", 2)?

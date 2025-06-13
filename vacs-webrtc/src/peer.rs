@@ -1,9 +1,8 @@
-use crate::audio::{EncodedAudioFrame, SAMPLE_RATE};
-use crate::config::WebrtcConfig;
-use crate::webrtc::{WEBRTC_TRACK_ID, WEBRTC_TRACK_STREAM_ID};
+use crate::config::{WEBRTC_TRACK_ID, WEBRTC_TRACK_STREAM_ID, WebrtcConfig};
 use anyhow::{Context, Result};
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use vacs_audio::{EncodedAudioFrame, SAMPLE_RATE};
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::{MIME_TYPE_OPUS, MediaEngine};
@@ -20,8 +19,8 @@ use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSampl
 pub struct Peer {
     peer_connection: RTCPeerConnection,
     track: Arc<TrackLocalStaticSample>,
-    sender: Option<crate::webrtc::Sender>,
-    receiver: Option<crate::webrtc::Receiver>,
+    sender: Option<crate::Sender>,
+    receiver: Option<crate::Receiver>,
 }
 pub type PeerConnectionState = RTCPeerConnectionState;
 
@@ -92,8 +91,8 @@ impl Peer {
         input_rx: mpsc::Receiver<EncodedAudioFrame>,
         output_tx: mpsc::Sender<EncodedAudioFrame>,
     ) -> Result<()> {
-        self.sender = Some(crate::webrtc::Sender::new(Arc::clone(&self.track), input_rx).await?);
-        self.receiver = Some(crate::webrtc::Receiver::new(&self.peer_connection, output_tx).await?);
+        self.sender = Some(crate::Sender::new(Arc::clone(&self.track), input_rx).await?);
+        self.receiver = Some(crate::Receiver::new(&self.peer_connection, output_tx).await?);
 
         Ok(())
     }

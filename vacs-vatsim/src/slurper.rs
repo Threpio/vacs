@@ -7,7 +7,7 @@
 //! ```rust
 //! #[cfg(test)]
 //! mod tests {
-//!     use vacs_core::vatsim::slurper::SlurperClient;
+//!     use vacs_vatsim::slurper::SlurperClient;
 //!     use wiremock::matchers::{method, path, query_param};
 //!     use wiremock::{Mock, MockServer, ResponseTemplate};
 //!
@@ -71,7 +71,7 @@ impl SlurperClient {
     /// # Examples
     ///
     /// ```rust
-    /// use vacs_core::vatsim::slurper::SlurperClient;
+    /// use vacs_vatsim::slurper::SlurperClient;
     ///
     /// let client = SlurperClient::new("https://slurper.vatsim.net").unwrap();
     /// ```
@@ -92,7 +92,7 @@ impl SlurperClient {
     /// # Examples
     ///
     /// ```rust
-    /// use vacs_core::vatsim::slurper::SlurperClient;
+    /// use vacs_vatsim::slurper::SlurperClient;
     /// use std::time::Duration;
     ///
     /// let client = SlurperClient::new("https://slurper.vatsim.net")
@@ -122,7 +122,7 @@ impl SlurperClient {
     ///
     /// # Examples
     /// ```rust
-    /// use vacs_core::vatsim::slurper::SlurperClient;
+    /// use vacs_vatsim::slurper::SlurperClient;
     /// use wiremock::matchers::{method, path, query_param};
     /// use wiremock::{Mock, MockServer, ResponseTemplate};
     ///

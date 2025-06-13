@@ -8,7 +8,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use tokio::sync::{broadcast, mpsc, watch};
-use vacs_core::signaling::{ClientInfo, Message};
+use vacs_protocol::{ClientInfo, SignalingMessage};
 
 pub struct MockSink {
     tx: mpsc::UnboundedSender<ws::Message>,
@@ -68,8 +68,8 @@ pub struct TestSetup {
     pub mock_sink: MockSink,
     pub mock_stream: MockStream,
     pub websocket_rx: Arc<Mutex<mpsc::UnboundedReceiver<ws::Message>>>,
-    pub rx: mpsc::Receiver<Message>,
-    pub broadcast_rx: broadcast::Receiver<Message>,
+    pub rx: mpsc::Receiver<SignalingMessage>,
+    pub broadcast_rx: broadcast::Receiver<SignalingMessage>,
     pub shutdown_tx: watch::Sender<()>,
 }
 
@@ -108,7 +108,7 @@ impl TestSetup {
     pub async fn register_client(
         &self,
         client_id: &str,
-    ) -> (ClientSession, mpsc::Receiver<Message>) {
+    ) -> (ClientSession, mpsc::Receiver<SignalingMessage>) {
         self.app_state
             .register_client(client_id)
             .await
@@ -118,7 +118,7 @@ impl TestSetup {
     pub async fn register_clients(
         &self,
         client_ids: Vec<&str>,
-    ) -> HashMap<String, (ClientSession, mpsc::Receiver<Message>)> {
+    ) -> HashMap<String, (ClientSession, mpsc::Receiver<SignalingMessage>)> {
         futures_util::future::join_all(client_ids.iter().map(|&client_id| async move {
             (client_id.to_string(), self.register_client(client_id).await)
         }))

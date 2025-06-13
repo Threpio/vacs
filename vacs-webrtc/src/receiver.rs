@@ -1,7 +1,7 @@
-use crate::audio::EncodedAudioFrame;
 use anyhow::Result;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
+use vacs_audio::EncodedAudioFrame;
 use webrtc::peer_connection::RTCPeerConnection;
 
 pub struct Receiver {

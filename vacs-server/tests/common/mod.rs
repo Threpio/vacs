@@ -8,7 +8,7 @@ use tokio::net::TcpStream;
 use tokio::sync::watch;
 use tokio::time::timeout;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async, tungstenite};
-use vacs_core::signaling;
+use vacs_protocol::{ClientInfo, SignalingMessage};
 use vacs_server::app::create_app;
 use vacs_server::config::{AppConfig, AuthConfig};
 use vacs_server::state::AppState;
@@ -87,25 +87,25 @@ impl TestClient {
         client_list_predicate: F,
     ) -> anyhow::Result<Self>
     where
-        F: FnOnce(&[signaling::ClientInfo]),
+        F: FnOnce(&[ClientInfo]),
     {
         let mut ws_stream = connect_to_websocket(addr).await;
 
-        let login_message = signaling::Message::Login {
+        let login_message = SignalingMessage::Login {
             id: id.to_string(),
             token: token.to_string(),
         };
         ws_stream
-            .send(tungstenite::Message::from(signaling::Message::serialize(
+            .send(tungstenite::Message::from(SignalingMessage::serialize(
                 &login_message,
             )?))
             .await?;
 
         if let Some(Ok(tungstenite::Message::Text(response_text))) = ws_stream.next().await {
-            let response = signaling::Message::deserialize(&response_text)?;
+            let response = SignalingMessage::deserialize(&response_text)?;
             match response {
-                signaling::Message::ClientList { clients } => client_list_predicate(&clients),
-                signaling::Message::LoginFailure { reason } => {
+                SignalingMessage::ClientList { clients } => client_list_predicate(&clients),
+                SignalingMessage::LoginFailure { reason } => {
                     return Err(anyhow::anyhow!("Login failed: {:?}", reason));
                 }
                 _ => return Err(anyhow::anyhow!("Unexpected response: {:?}", response)),
@@ -120,9 +120,9 @@ impl TestClient {
 
     #[allow(unused)]
     /// Sends a message through the WebSocket connection.
-    pub async fn send(&mut self, message: signaling::Message) -> anyhow::Result<()> {
+    pub async fn send(&mut self, message: SignalingMessage) -> anyhow::Result<()> {
         self.ws_stream
-            .send(tungstenite::Message::from(signaling::Message::serialize(
+            .send(tungstenite::Message::from(SignalingMessage::serialize(
                 &message,
             )?))
             .await?;
@@ -141,10 +141,10 @@ impl TestClient {
     pub async fn receive_with_timeout(
         &mut self,
         timeout_duration: Duration,
-    ) -> Option<signaling::Message> {
+    ) -> Option<SignalingMessage> {
         match timeout(timeout_duration, self.ws_stream.next()).await {
             Ok(Some(Ok(tungstenite::Message::Text(response_text)))) => {
-                signaling::Message::deserialize(&response_text).ok()
+                SignalingMessage::deserialize(&response_text).ok()
             }
             _ => None,
         }
@@ -167,7 +167,7 @@ impl TestClient {
     pub async fn receive_until_timeout(
         &mut self,
         timeout_duration: Duration,
-    ) -> Vec<signaling::Message> {
+    ) -> Vec<SignalingMessage> {
         let mut messages = Vec::new();
         while let Some(message) = self.receive_with_timeout(timeout_duration).await {
             messages.push(message);
@@ -180,8 +180,8 @@ impl TestClient {
     pub async fn receive_until_timeout_with_filter(
         &mut self,
         timeout_duration: Duration,
-        predicate: impl Fn(&signaling::Message) -> bool,
-    ) -> Vec<signaling::Message> {
+        predicate: impl Fn(&SignalingMessage) -> bool,
+    ) -> Vec<SignalingMessage> {
         let mut messages = Vec::new();
         while let Some(message) = self.receive_with_timeout(timeout_duration).await {
             if predicate(&message) {
@@ -195,11 +195,11 @@ impl TestClient {
     /// Sends a message and waits for an expected response using pattern matching.
     pub async fn send_and_expect<F>(
         &mut self,
-        message: signaling::Message,
+        message: SignalingMessage,
         verifier: F,
     ) -> anyhow::Result<()>
     where
-        F: FnOnce(signaling::Message),
+        F: FnOnce(SignalingMessage),
     {
         self.send(message).await?;
         let response = self.receive_with_timeout(Duration::from_secs(1)).await;
@@ -298,11 +298,11 @@ pub fn assert_raw_message_matches<F>(
     message: Option<Result<tungstenite::Message, tungstenite::Error>>,
     predicate: F,
 ) where
-    F: FnOnce(signaling::Message),
+    F: FnOnce(SignalingMessage),
 {
     match message {
         Some(Ok(tungstenite::Message::Text(raw_message))) => {
-            match signaling::Message::deserialize(&raw_message) {
+            match SignalingMessage::deserialize(&raw_message) {
                 Ok(message) => predicate(message),
                 Err(err) => panic!("Failed to deserialize message: {:?}", err),
             }
@@ -314,9 +314,9 @@ pub fn assert_raw_message_matches<F>(
 }
 
 #[allow(unused)]
-pub fn assert_message_matches<F>(message: Option<signaling::Message>, predicate: F)
+pub fn assert_message_matches<F>(message: Option<SignalingMessage>, predicate: F)
 where
-    F: FnOnce(signaling::Message),
+    F: FnOnce(SignalingMessage),
 {
     match message {
         Some(message) => predicate(message),

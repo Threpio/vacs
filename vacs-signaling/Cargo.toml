@@ -1,0 +1,23 @@
+[package]
+name = "vacs-signaling"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+futures-util = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-tungstenite = "0.26.2"
+tracing = { workspace = true }
+vacs-protocol = { path = "../vacs-protocol" }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+test-log = { workspace = true }
+
+[lints]
+workspace = true

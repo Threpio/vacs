@@ -2,7 +2,6 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
-use vacs_core::signaling;
 
 const SERVER: &str = "ws://127.0.0.1:3000/ws";
 const CLIENT_ID: &str = "client1"; // Unique ID for the client
@@ -25,7 +24,7 @@ async fn main() {
     };
 
     // Perform the login flow
-    let login_message = signaling::Message::Login {
+    let login_message = vacs_protocol::SignalingMessage::Login {
         id: CLIENT_ID.to_string(),
         token: TOKEN.to_string(),
     };
@@ -44,15 +43,15 @@ async fn main() {
                 println!("Received message: {}", text);
 
                 // Check if the server responded with a LoginFailure
-                if let Ok(signaling::Message::LoginFailure { reason }) =
-                    signaling::Message::deserialize(&text)
+                if let Ok(vacs_protocol::SignalingMessage::LoginFailure { reason }) =
+                    vacs_protocol::SignalingMessage::deserialize(&text)
                 {
                     println!("Login failed: {:?}", reason);
                     return;
                 }
 
                 // If login succeeded, send a CallOffer
-                let call_offer_message = signaling::Message::CallOffer {
+                let call_offer_message = vacs_protocol::SignalingMessage::CallOffer {
                     sdp: "sample_sdp".to_string(),
                     peer_id: PEER_ID.to_string(),
                 };
@@ -99,9 +98,9 @@ async fn main() {
 /// Helper function to send a message through the WebSocket connection
 async fn send_message(
     ws_stream: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
-    message: &signaling::Message,
+    message: &vacs_protocol::SignalingMessage,
 ) -> anyhow::Result<()> {
-    let serialized_message = signaling::Message::serialize(message)?;
+    let serialized_message = vacs_protocol::SignalingMessage::serialize(message)?;
     ws_stream.send(Message::from(serialized_message)).await?;
     Ok(())
 }
