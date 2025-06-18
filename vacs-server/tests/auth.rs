@@ -109,7 +109,7 @@ async fn login_timeout() {
     let mut ws_stream = connect_to_websocket(test_app.addr()).await;
 
     tokio::time::sleep(Duration::from_millis(
-        test_app.state().config.auth.login_flow_timeout_millis,
+        test_app.state().config.auth.login_flow_timeout_millis+50,
     ))
     .await;
 
@@ -124,8 +124,15 @@ async fn login_timeout() {
         .await
         .expect("Failed to send login message");
 
-    let message_result = ws_stream.next().await;
-    assert!(message_result.is_none() || matches!(message_result, Some(Err(_))));
+    match ws_stream.next().await {
+        Some(Ok(tungstenite::Message::Text(response))) => { 
+            match SignalingMessage::deserialize(&response) {
+                Ok(SignalingMessage::LoginFailure {reason}) => assert_eq!(reason, LoginFailureReason::Timeout),
+                _ => panic!("Unexpected response: {:?}", response)
+            }
+        },
+        other => panic!("Unexpected response: {:?}", other)
+    }
 }
 
 #[test(tokio::test)]

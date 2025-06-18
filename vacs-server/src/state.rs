@@ -2,7 +2,7 @@ use crate::config;
 use crate::config::AppConfig;
 use crate::ws::ClientSession;
 use std::collections::HashMap;
-use tokio::sync::{RwLock, broadcast, mpsc, watch};
+use tokio::sync::{broadcast, mpsc, watch, RwLock};
 use vacs_protocol::{ClientInfo, ErrorReason, SignalingMessage};
 
 pub struct AppState {
@@ -37,6 +37,7 @@ impl AppState {
         tracing::trace!("Registering client");
 
         if self.clients.read().await.contains_key(client_id) {
+            tracing::trace!("Client already exists");
             anyhow::bail!("Client already exists");
         }
 

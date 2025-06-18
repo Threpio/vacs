@@ -1,5 +1,5 @@
 use crate::config::AuthConfig;
-use crate::ws::message::{MessageResult, receive_message, send_message};
+use crate::ws::message::{receive_message, send_message, MessageResult};
 use axum::extract::ws;
 use axum::extract::ws::WebSocket;
 use futures_util::stream::{SplitSink, SplitStream};
@@ -23,7 +23,7 @@ pub async fn handle_login(
     websocket_sender: &mut SplitSink<WebSocket, ws::Message>,
 ) -> Option<String> {
     tracing::trace!("Handling login flow");
-    tokio::time::timeout(Duration::from_millis(auth_config.login_flow_timeout_millis), async {
+    match tokio::time::timeout(Duration::from_millis(auth_config.login_flow_timeout_millis), async {
         loop {
             return match receive_message(websocket_receiver).await {
                 MessageResult::ApplicationMessage(SignalingMessage::Login { id, token }) => {
@@ -65,10 +65,18 @@ pub async fn handle_login(
                 }
             };
         }
-    })
-    .await
-    .unwrap_or_else(|_| {
-        tracing::debug!("Login timed out");
-        None
-    })
+    }).await {
+        Ok(Some(id)) => Some(id),
+        Ok(None) => None,
+        Err(_) => {
+            tracing::debug!("Login flow timed out");
+            let login_timeout_message = SignalingMessage::LoginFailure {
+                reason: LoginFailureReason::Timeout,
+            };
+            if let Err(err) = send_message(websocket_sender, login_timeout_message).await {
+                tracing::warn!(?err, "Failed to send login timeout message");
+            }
+            None
+        }
+    }
 }

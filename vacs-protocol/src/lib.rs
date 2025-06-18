@@ -9,6 +9,8 @@ pub enum LoginFailureReason {
     DuplicateId,
     /// The provided credentials are invalid.
     InvalidCredentials,
+    /// The login flow was not completed in time, the client should reconnect and authenticate immediately.
+    Timeout,
 }
 
 /// Possible reasons for a client or server error.
