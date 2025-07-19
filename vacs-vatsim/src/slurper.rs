@@ -1,6 +1,6 @@
 //! Client for the VATSIM Slurper API.
 //!
-//! This module provides a [`SlurperClient`] for retrieving the station name of a currently connected VATSIM client.
+//! This module provides a [`SlurperClient`] for retrieving the user info of a currently connected VATSIM client.
 //!
 //! # Examples
 //!
@@ -12,7 +12,7 @@
 //!     use wiremock::{Mock, MockServer, ResponseTemplate};
 //!
 //!     #[tokio::test]
-//!     async fn get_station_name_empty() -> anyhow::Result<()> {
+//!     async fn get_user_info_empty() -> anyhow::Result<()> {
 //!         let server = MockServer::start().await;
 //!         Mock::given(method("GET"))
 //!             .and(path("/users/info"))
@@ -23,36 +23,49 @@
 //!
 //!         let client = SlurperClient::new(&server.uri())?;
 //!
-//!         let station_name = client
-//!             .get_station_name("1234567")
+//!         let user_info = client
+//!             .get_user_info("1234567")
 //!             .await?;
 //!
-//!         assert_eq!(station_name, None);
+//!         assert_eq!(user_info, None);
 //!         Ok(())
 //!     }
 //! }
 //! ```
 
 use anyhow::Context;
+use tracing::instrument;
 
 /// Default timeout for HTTP requests against the slurper API.
 /// Can be overwritten using [`SlurperClient::with_timeout`].
 const SLURPER_DEFAULT_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 /// User information endpoint for the slurper API.
 const SLURPER_USER_INFO_ENDPOINT: &str = "/users/info";
-/// Index of the station name field in the slurper CSV line.
+/// Index of the callsign field in the slurper CSV line.
 /// Fields are listed in the [VATSIM Slurper API docs](https://vatsim.dev/api/slurper-api/get-user-info).
-const SLURPER_STATION_NAME_FIELD_INDEX: usize = 1;
+const SLURPER_CALLSIGN_FIELD_INDEX: usize = 1;
 /// Index of the facility type field in the slurper CSV line.
 /// Fields are listed in the [VATSIM Slurper API docs](https://vatsim.dev/api/slurper-api/get-user-info).
 const SLURPER_FACILITY_TYPE_FIELD_INDEX: usize = 2;
 /// Index of the frequency field in the slurper CSV line.
 /// Fields are listed in the [VATSIM Slurper API docs](https://vatsim.dev/api/slurper-api/get-user-info).
 const SLURPER_FREQUENCY_FIELD_INDEX: usize = 3;
+/// Index of the visibility range field in the slurper CSV line.
+/// Fields are listed in the [VATSIM Slurper API docs](https://vatsim.dev/api/slurper-api/get-user-info).
+const SLURPER_VISIBILITY_RANGE_FIELD_INDEX: usize = 4;
 /// Slurper facility type for ATC clients.
 const SLURPER_FACILITY_TYPE_ATC: &str = "atc";
 /// Slurper facility type for pilots.
 const SLURPER_FACILITY_TYPE_PILOT: &str = "pilot";
+
+/// User info returned from the VATSIM Slurper API.
+#[derive(Debug, PartialEq)]
+pub struct SlurperUserInfo {
+    /// Callsign the CID connected as.
+    pub callsign: String,
+    /// (Primary) frequency selected by the controller.
+    pub frequency: String,
+}
 
 /// Client for accessing the VATSIM Slurper API.
 pub struct SlurperClient {
@@ -109,15 +122,17 @@ impl SlurperClient {
         Ok(self)
     }
 
-    /// Fetches the ATC station name for a given CID.
+    /// Fetches the user info for a given CID.
     ///
     /// This method queries the Slurper user info API for the given CID and returns the corresponding
-    /// station name, if available.
+    /// callsign and frequency, if available.
+    /// If multiple entries are found (e.g. the user has connected one or multiple ATIS stations),
+    /// the first entry with a visibility range greater than zero is returned.
     ///
     /// # Returns
     ///
-    /// - `Ok(Some(String))` if an active VATSIM ATC connection was found.
-    /// - `Ok(None)` if no active VATSIM connection was found or the CID is connected as a pilot.
+    /// - `Ok(Some(SlurperUserInfo))` if an active VATSIM ATC connection was found.
+    /// - `Ok(None)` if no active VATSIM connection was found, the CID is connected as a pilot, or no entry with a visibility range greater than zero was found.
     /// - `Err(anyhow::Error)` if retrieving or parsing the data failed.
     ///
     /// # Examples
@@ -127,29 +142,33 @@ impl SlurperClient {
     /// use wiremock::{Mock, MockServer, ResponseTemplate};
     ///
     /// #[tokio::test]
-    /// async fn get_station_name() -> anyhow::Result<()> {
+    /// async fn get_user_info() -> anyhow::Result<()> {
     ///     let server = MockServer::start().await;
     ///     Mock::given(method("GET"))
     ///         .and(path("/users/info"))
     ///         .and(query_param("cid", "1234567"))
     ///         .respond_with(ResponseTemplate::new(200).set_body_string(
-    ///             "1234567,LOVV_CTR,atc,123.450,600,47.66667,14.33333,0,0,0,0,0,0,0,0,\n",
+    ///             "1459660,LOWW_D_ATIS,atc,121.730,0,48.11028,16.56972,0,0,0,0,0,0,0,0,\n\
+    ///              1234567,LOVV_CTR,atc,123.450,600,47.66667,14.33333,0,0,0,0,0,0,0,0,\n\
+    ///              1459660,LOWW_A_ATIS,atc,122.955,0,48.11028,16.56972,0,0,0,0,0,0,0,0,\n",
     ///         ))
     ///         .mount(&server)
     ///         .await;
     ///
     ///     let client = SlurperClient::new(&server.uri())?;
     ///
-    ///     let station_name = client
-    ///         .get_station_name("1234567")
-    ///         .await?;
+    ///     let user_info = client
+    ///         .get_user_info("1234567")
+    ///         .await?.unwrap();
     ///
-    ///     assert_eq!(station_name, Some("LOVV_CTR".to_string()));
+    ///     assert_eq!(user_info.callsign, "LOVV_CTR");
+    ///     assert_eq!(user_info.frequency, "123.450");
     ///     Ok(())
     ///  }
     /// ```
-    pub async fn get_station_name(&self, cid: &str) -> anyhow::Result<Option<String>> {
-        tracing::trace!(?cid, "Retrieving station name for CID");
+    #[instrument(level = "debug", skip(self), err)]
+    pub async fn get_user_info(&self, cid: &str) -> anyhow::Result<Option<SlurperUserInfo>> {
+        tracing::debug!("Retrieving user info for CID");
 
         if cid.is_empty() {
             tracing::debug!("CID is empty, returning None");
@@ -162,12 +181,13 @@ impl SlurperClient {
             return Ok(None);
         }
 
-        self.parse_slurper_data(cid, body)
+        self.parse_slurper_data(body)
     }
 
     /// Performs an HTTP request to fetch the user info data from the Slurper API.
+    #[instrument(level = "trace", skip(self), err)]
     async fn fetch_slurper_data(&self, cid: &str) -> anyhow::Result<bytes::Bytes> {
-        tracing::trace!(?cid, "Performing HTTP request");
+        tracing::trace!("Performing HTTP request");
         let response = self
             .client
             .get(self.user_info_endpoint_url.as_str())
@@ -178,7 +198,7 @@ impl SlurperClient {
             .error_for_status()
             .context("Received non-200 HTTP status code")?;
 
-        tracing::trace!(?cid, content_length = ?response.content_length(), "Reading response body");
+        tracing::trace!(content_length = ?response.content_length(), "Reading response body");
         let body = response
             .bytes()
             .await
@@ -188,52 +208,91 @@ impl SlurperClient {
     }
 
     /// Parses the CSV data retrieved from the Slurper user info endpoint and returns the
-    /// extracted station name.
-    fn parse_slurper_data(&self, cid: &str, body: bytes::Bytes) -> anyhow::Result<Option<String>> {
-        tracing::trace!(?cid, "Reading CSV");
+    /// extracted [`SlurperUserInfo`].
+    #[instrument(level = "trace", skip(self, body), err)]
+    fn parse_slurper_data(&self, body: bytes::Bytes) -> anyhow::Result<Option<SlurperUserInfo>> {
+        tracing::trace!("Parsing CSV");
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(false)
             .from_reader(body.as_ref());
-        match reader.records().next() {
-            Some(Ok(record)) => self.extract_station_name(cid, record),
-            _ => Err(anyhow::anyhow!("Received empty slurper CSV")),
+
+        for result in reader.records() {
+            let record = match result {
+                Ok(rec) => rec,
+                Err(err) => {
+                    tracing::warn!(?err, "Failed to parse a CSV record");
+                    continue;
+                }
+            };
+
+            match self.extract_user_info(record)? {
+                Some(info) => return Ok(Some(info)),
+                None => continue,
+            }
         }
+
+        tracing::debug!("CID is present in slurper, but no valid user info found, returning None");
+        Ok(None)
     }
 
-    /// Extracts the station name from the parsed [`csv::StringRecord`], validating the client is
+    /// Extracts the [`SlurperUserInfo`] from the parsed [`csv::StringRecord`], validating the client is
     /// currently logged in using an ATC connection.
-    fn extract_station_name(
+    #[instrument(level = "trace", skip(self), err)]
+    fn extract_user_info(
         &self,
-        cid: &str,
         record: csv::StringRecord,
-    ) -> anyhow::Result<Option<String>> {
+    ) -> anyhow::Result<Option<SlurperUserInfo>> {
         let facility_type = record
             .get(SLURPER_FACILITY_TYPE_FIELD_INDEX)
             .unwrap_or(SLURPER_FACILITY_TYPE_PILOT);
 
         if !facility_type.eq_ignore_ascii_case(SLURPER_FACILITY_TYPE_ATC) {
-            tracing::debug!(?cid, "CID is pilot, returning None");
+            tracing::trace!("CID is pilot, returning None");
             return Ok(None);
         }
 
-        let station_name = match record.get(SLURPER_STATION_NAME_FIELD_INDEX) {
-            Some(station_name) => station_name,
+        let visibility_range = record
+            .get(SLURPER_VISIBILITY_RANGE_FIELD_INDEX)
+            .unwrap_or("0")
+            .parse::<i32>()
+            .unwrap_or(0);
+
+        if visibility_range == 0 {
+            tracing::trace!("Station has no visibility range, returning None");
+            return Ok(None);
+        }
+
+        let callsign = match record.get(SLURPER_CALLSIGN_FIELD_INDEX) {
+            Some(callsign) => callsign,
             None => {
-                tracing::debug!(
-                    ?cid,
-                    "CID is not present in CSV record in slurper, returning None"
+                tracing::trace!("Callsign is not present in CSV record in slurper, returning None");
+                return Ok(None);
+            }
+        };
+        if callsign.is_empty() {
+            tracing::trace!("Empty callsign, returning None");
+            return Ok(None);
+        }
+
+        let frequency = match record.get(SLURPER_FREQUENCY_FIELD_INDEX) {
+            Some(frequency) => frequency,
+            None => {
+                tracing::trace!(
+                    "Frequency is not present in CSV record in slurper, returning None"
                 );
                 return Ok(None);
             }
         };
-
-        if station_name.is_empty() {
-            tracing::debug!(?cid, "Empty station name, returning None");
+        if frequency.is_empty() {
+            tracing::trace!("Empty frequency, returning None");
             return Ok(None);
         }
 
-        tracing::debug!(?cid, ?station_name, "Found station name for CID");
-        Ok(Some(station_name.to_string()))
+        tracing::debug!(?callsign, ?frequency, "Found user info for CID");
+        Ok(Some(SlurperUserInfo {
+            callsign: callsign.to_string(),
+            frequency: frequency.to_string(),
+        }))
     }
 }
 
@@ -257,7 +316,7 @@ mod tests {
     }
 
     #[test(tokio::test)]
-    async fn get_station_name() -> anyhow::Result<()> {
+    async fn get_user_info() -> anyhow::Result<()> {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/users/info"))
@@ -270,17 +329,46 @@ mod tests {
 
         let client = SlurperClient::new(&server.uri()).context("Failed to create client")?;
 
-        let station_name = client
-            .get_station_name("1234567")
+        let user_info = client
+            .get_user_info("1234567")
             .await
-            .context("Failed to get station name")?;
+            .context("Failed to get user info")?
+            .expect("No user info found");
 
-        assert_eq!(station_name, Some("LOVV_CTR".to_string()));
+        assert_eq!(user_info.callsign, "LOVV_CTR".to_string());
+        assert_eq!(user_info.frequency, "123.450".to_string());
         Ok(())
     }
 
     #[test(tokio::test)]
-    async fn get_station_name_pilot() -> anyhow::Result<()> {
+    async fn get_user_info_multiple_entries() -> anyhow::Result<()> {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/users/info"))
+            .and(query_param("cid", "1234567"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(
+                "1459660,LOWW_D_ATIS,atc,121.730,0,48.11028,16.56972,0,0,0,0,0,0,0,0,\n\
+                1234567,LOVV_CTR,atc,123.450,600,47.66667,14.33333,0,0,0,0,0,0,0,0,\n\
+                1459660,LOWW_A_ATIS,atc,122.955,0,48.11028,16.56972,0,0,0,0,0,0,0,0,\n",
+            ))
+            .mount(&server)
+            .await;
+
+        let client = SlurperClient::new(&server.uri()).context("Failed to create client")?;
+
+        let user_info = client
+            .get_user_info("1234567")
+            .await
+            .context("Failed to get user info")?
+            .expect("No user info found");
+
+        assert_eq!(user_info.callsign, "LOVV_CTR".to_string());
+        assert_eq!(user_info.frequency, "123.450".to_string());
+        Ok(())
+    }
+
+    #[test(tokio::test)]
+    async fn get_user_info_pilot() -> anyhow::Result<()> {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/users/info"))
@@ -294,17 +382,41 @@ mod tests {
 
         let client = SlurperClient::new(&server.uri()).context("Failed to create client")?;
 
-        let station_name = client
-            .get_station_name("1234567")
+        let user_info = client
+            .get_user_info("1234567")
             .await
-            .context("Failed to get station name")?;
+            .context("Failed to get user info")?;
 
-        assert_eq!(station_name, None);
+        assert_eq!(user_info, None);
         Ok(())
     }
 
     #[test(tokio::test)]
-    async fn get_station_name_empty() -> anyhow::Result<()> {
+    async fn get_user_info_visibility_range_zero() -> anyhow::Result<()> {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/users/info"))
+            .and(query_param("cid", "1234567"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(
+                "1459660,LOWW_D_ATIS,atc,121.730,0,48.11028,16.56972,0,0,0,0,0,0,0,0,\n\
+                1459660,LOWW_A_ATIS,atc,122.955,0,48.11028,16.56972,0,0,0,0,0,0,0,0,\n",
+            ))
+            .mount(&server)
+            .await;
+
+        let client = SlurperClient::new(&server.uri()).context("Failed to create client")?;
+
+        let user_info = client
+            .get_user_info("1234567")
+            .await
+            .context("Failed to get user info")?;
+
+        assert_eq!(user_info, None);
+        Ok(())
+    }
+
+    #[test(tokio::test)]
+    async fn get_user_info_empty() -> anyhow::Result<()> {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/users/info"))
@@ -315,30 +427,30 @@ mod tests {
 
         let client = SlurperClient::new(&server.uri()).context("Failed to create client")?;
 
-        let station_name = client
-            .get_station_name("1234567")
+        let user_info = client
+            .get_user_info("1234567")
             .await
-            .context("Failed to get station name")?;
+            .context("Failed to get user info")?;
 
-        assert_eq!(station_name, None);
+        assert_eq!(user_info, None);
         Ok(())
     }
 
     #[test(tokio::test)]
-    async fn get_station_name_empty_cid() -> anyhow::Result<()> {
+    async fn get_user_info_empty_cid() -> anyhow::Result<()> {
         let client = SlurperClient::new("http://localhost").context("Failed to create client")?;
 
-        let station_name = client
-            .get_station_name("")
+        let user_info = client
+            .get_user_info("")
             .await
-            .context("Failed to get station name")?;
+            .context("Failed to get user info")?;
 
-        assert_eq!(station_name, None);
+        assert_eq!(user_info, None);
         Ok(())
     }
 
     #[test(tokio::test)]
-    async fn get_station_name_non_200_status_code() -> anyhow::Result<()> {
+    async fn get_user_info_non_200_status_code() -> anyhow::Result<()> {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/users/info"))
@@ -349,7 +461,7 @@ mod tests {
 
         let client = SlurperClient::new(&server.uri()).context("Failed to create client")?;
 
-        let result = client.get_station_name("1234567").await;
+        let result = client.get_user_info("1234567").await;
 
         assert!(result.is_err());
         assert!(result.unwrap_err().chain().any(|e| {
@@ -360,7 +472,7 @@ mod tests {
     }
 
     #[test(tokio::test)]
-    async fn get_station_name_timeout() -> anyhow::Result<()> {
+    async fn get_user_info_timeout() -> anyhow::Result<()> {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/users/info"))
@@ -373,7 +485,7 @@ mod tests {
             .with_timeout(Duration::from_millis(50))
             .context("Failed to create client")?;
 
-        let result = client.get_station_name("1234567").await;
+        let result = client.get_user_info("1234567").await;
 
         assert!(result.is_err());
         assert!(
@@ -386,7 +498,7 @@ mod tests {
     }
 
     #[test(tokio::test)]
-    async fn get_station_name_missing_facility_type() -> anyhow::Result<()> {
+    async fn get_user_info_missing_facility_type() -> anyhow::Result<()> {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/users/info"))
@@ -399,17 +511,17 @@ mod tests {
             .with_timeout(Duration::from_millis(50))
             .context("Failed to create client")?;
 
-        let station_name = client
-            .get_station_name("1234567")
+        let user_info = client
+            .get_user_info("1234567")
             .await
-            .context("Failed to get station name")?;
+            .context("Failed to get user info")?;
 
-        assert_eq!(station_name, None);
+        assert_eq!(user_info, None);
         Ok(())
     }
 
     #[test(tokio::test)]
-    async fn get_station_name_empty_station_name() -> anyhow::Result<()> {
+    async fn get_user_info_empty_callsign() -> anyhow::Result<()> {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/users/info"))
@@ -422,17 +534,17 @@ mod tests {
             .with_timeout(Duration::from_millis(50))
             .context("Failed to create client")?;
 
-        let station_name = client
-            .get_station_name("1234567")
+        let user_info = client
+            .get_user_info("1234567")
             .await
-            .context("Failed to get station name")?;
+            .context("Failed to get user info")?;
 
-        assert_eq!(station_name, None);
+        assert_eq!(user_info, None);
         Ok(())
     }
 
     #[test(tokio::test)]
-    async fn get_station_name_missing_station_name() -> anyhow::Result<()> {
+    async fn get_user_info_missing_callsign() -> anyhow::Result<()> {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/users/info"))
@@ -445,17 +557,63 @@ mod tests {
             .with_timeout(Duration::from_millis(50))
             .context("Failed to create client")?;
 
-        let station_name = client
-            .get_station_name("1234567")
+        let user_info = client
+            .get_user_info("1234567")
             .await
-            .context("Failed to get station name")?;
+            .context("Failed to get user info")?;
 
-        assert_eq!(station_name, None);
+        assert_eq!(user_info, None);
         Ok(())
     }
 
     #[test(tokio::test)]
-    async fn get_station_name_empty_csv_record() -> anyhow::Result<()> {
+    async fn get_user_info_empty_frequency() -> anyhow::Result<()> {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/users/info"))
+            .and(query_param("cid", "1234567"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("1234567,,atc,,\n"))
+            .mount(&server)
+            .await;
+
+        let client = SlurperClient::new(&server.uri())?
+            .with_timeout(Duration::from_millis(50))
+            .context("Failed to create client")?;
+
+        let user_info = client
+            .get_user_info("1234567")
+            .await
+            .context("Failed to get user info")?;
+
+        assert_eq!(user_info, None);
+        Ok(())
+    }
+
+    #[test(tokio::test)]
+    async fn get_user_info_missing_frequency() -> anyhow::Result<()> {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/users/info"))
+            .and(query_param("cid", "1234567"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("1234567,LOVV_CTR,atc\n"))
+            .mount(&server)
+            .await;
+
+        let client = SlurperClient::new(&server.uri())?
+            .with_timeout(Duration::from_millis(50))
+            .context("Failed to create client")?;
+
+        let user_info = client
+            .get_user_info("1234567")
+            .await
+            .context("Failed to get user info")?;
+
+        assert_eq!(user_info, None);
+        Ok(())
+    }
+
+    #[test(tokio::test)]
+    async fn get_user_info_empty_csv_record() -> anyhow::Result<()> {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/users/info"))
@@ -468,15 +626,12 @@ mod tests {
             .with_timeout(Duration::from_millis(50))
             .context("Failed to create client")?;
 
-        let result = client.get_station_name("1234567").await;
+        let user_info = client
+            .get_user_info("1234567")
+            .await
+            .context("Failed to get user info")?;
 
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .chain()
-                .any(|e| e.to_string().contains("Received empty slurper CSV"))
-        );
+        assert_eq!(user_info, None);
         Ok(())
     }
 }

@@ -1,10 +1,3 @@
-#[cfg(feature = "oauth")]
-pub mod oauth;
-
-#[cfg(feature = "user")]
-pub mod user;
-
-#[cfg(feature = "slurper")]
 pub mod slurper;
 
 /// User-Agent string used for all HTTP requests.
