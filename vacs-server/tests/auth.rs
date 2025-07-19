@@ -3,7 +3,7 @@ use pretty_assertions::assert_eq;
 use std::time::Duration;
 use test_log::test;
 use tokio_tungstenite::tungstenite;
-use vacs_protocol::{LoginFailureReason, SignalingMessage};
+use vacs_protocol::ws::{LoginFailureReason, SignalingMessage};
 use vacs_server::test_utils::{assert_message_matches, assert_raw_message_matches, connect_to_websocket, setup_test_clients, TestApp, TestClient};
 
 #[test(tokio::test)]

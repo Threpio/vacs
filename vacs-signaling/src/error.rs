@@ -1,6 +1,6 @@
 use thiserror::Error;
 use tokio_tungstenite::tungstenite;
-use vacs_protocol::{ErrorReason, LoginFailureReason};
+use vacs_protocol::ws::{ErrorReason, LoginFailureReason};
 
 #[derive(Debug, Error)]
 pub enum SignalingError {

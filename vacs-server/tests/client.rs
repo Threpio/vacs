@@ -3,7 +3,7 @@ use std::time::Duration;
 use test_log::test;
 use tokio_tungstenite::tungstenite;
 use tokio_tungstenite::tungstenite::Bytes;
-use vacs_protocol::SignalingMessage;
+use vacs_protocol::ws::SignalingMessage;
 use vacs_server::test_utils::{setup_n_test_clients, TestApp, TestClient};
 
 #[test(tokio::test)]

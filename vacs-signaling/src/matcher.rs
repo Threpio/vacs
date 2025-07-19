@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{Mutex, oneshot};
 use tracing::instrument;
-use vacs_protocol::SignalingMessage;
+use vacs_protocol::ws::SignalingMessage;
 
 /// Represents a waiting request for a message that matches a predicate.
 struct MatcherEntry {
@@ -98,7 +98,7 @@ mod tests {
     use super::*;
     use pretty_assertions::assert_matches;
     use test_log::test;
-    use vacs_protocol::ClientInfo;
+    use vacs_protocol::ws::ClientInfo;
 
     #[test(tokio::test)]
     async fn wait_for() {

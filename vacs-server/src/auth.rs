@@ -1,81 +1,39 @@
-use crate::config::AuthConfig;
-use crate::ws::message::{receive_message, send_message, MessageResult};
-use axum::extract::ws;
-use axum::extract::ws::WebSocket;
-use futures_util::stream::{SplitSink, SplitStream};
-use std::sync::Arc;
-use std::time::Duration;
+use crate::config::AppConfig;
+use crate::session::setup_redis_session_manager;
+use crate::users::Backend;
+use anyhow::Context;
+use axum_login::{AuthManagerLayer, AuthManagerLayerBuilder};
+use oauth2::basic::BasicClient;
+use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
+use tower_sessions::service::SignedCookie;
+use tower_sessions_redis_store::fred::prelude::Pool;
+use tower_sessions_redis_store::RedisStore;
 use tracing::instrument;
-use vacs_protocol::{LoginFailureReason, SignalingMessage};
-use vacs_vatsim::user::UserService;
 
-#[instrument(level = "debug", skip_all)]
-pub async fn handle_login(
-    auth_config: &AuthConfig,
-    vatsim_user_service: Arc<dyn UserService>,
-    websocket_receiver: &mut SplitStream<WebSocket>,
-    websocket_sender: &mut SplitSink<WebSocket, ws::Message>,
-) -> Option<String> {
-    tracing::trace!("Handling login flow");
-    match tokio::time::timeout(Duration::from_millis(auth_config.login_flow_timeout_millis), async {
-        loop {
-            return match receive_message(websocket_receiver).await {
-                MessageResult::ApplicationMessage(SignalingMessage::Login { token }) => {
-                    match vatsim_user_service.get_cid(&token).await {
-                        Ok(cid) => {
-                            tracing::trace!(?cid, "Login flow completed");
-                            Some(cid)
-                        },
-                        Err(err) => {
-                            tracing::debug!(?err, "Login flow failed");
-                            let login_failure_message = SignalingMessage::LoginFailure {
-                                reason: LoginFailureReason::InvalidCredentials,
-                            };
-                            if let Err(err) =
-                                send_message(websocket_sender, login_failure_message).await
-                            {
-                                tracing::warn!(?err, "Failed to send login failure message");
-                            }
-                            None
-                        }
-                    }
-                }
-                MessageResult::ApplicationMessage(message) => {
-                    tracing::debug!(msg = ?message, "Received unexpected message during login flow");
-                    let login_failure_message = SignalingMessage::LoginFailure {
-                        reason: LoginFailureReason::Unauthorized,
-                    };
-                    if let Err(err) = send_message(websocket_sender, login_failure_message).await {
-                        tracing::warn!(?err, "Failed to send login failure message");
-                    }
-                    None
-                }
-                MessageResult::ControlMessage => {
-                    tracing::trace!("Skipping control message during login");
-                    continue;
-                }
-                MessageResult::Disconnected => {
-                    tracing::debug!("Client disconnected during login flow");
-                    None
-                }
-                MessageResult::Error(err) => {
-                    tracing::warn!(?err, "Received error while handling login flow");
-                    None
-                }
-            };
-        }
-    }).await {
-        Ok(Some(id)) => Some(id),
-        Ok(None) => None,
-        Err(_) => {
-            tracing::debug!("Login flow timed out");
-            let login_timeout_message = SignalingMessage::LoginFailure {
-                reason: LoginFailureReason::Timeout,
-            };
-            if let Err(err) = send_message(websocket_sender, login_timeout_message).await {
-                tracing::warn!(?err, "Failed to send login timeout message");
-            }
-            None
-        }
-    }
+#[instrument(level = "debug", skip_all, err)]
+pub async fn setup_auth_layer(
+    config: &AppConfig,
+    redis_pool: Pool,
+) -> anyhow::Result<AuthManagerLayer<Backend, RedisStore<Pool>, SignedCookie>> {
+    tracing::debug!("Setting up authentication layer");
+    
+    let client = BasicClient::new(ClientId::new(config.auth.oauth.client_id.clone()))
+        .set_client_secret(ClientSecret::new(config.auth.oauth.client_secret.clone()))
+        .set_auth_uri(AuthUrl::new(config.auth.oauth.auth_url.clone()).context("Invalid auth URL")?)
+        .set_token_uri(
+            TokenUrl::new(config.auth.oauth.token_url.clone()).context("Invalid token URL")?,
+        )
+        .set_redirect_uri(
+            RedirectUrl::new(config.auth.oauth.redirect_url.clone())
+                .context("Invalid redirect URL")?,
+        );
+    let backend = Backend::new(
+        client.into(),
+        config.vatsim.user_service.user_details_endpoint_url.clone(),
+    )?;
+
+    let session_layer = setup_redis_session_manager(&config, redis_pool).await?;
+
+    tracing::debug!("Authentication layer setup complete");
+    Ok(AuthManagerLayerBuilder::new(backend, session_layer).build())
 }

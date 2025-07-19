@@ -1,6 +1,6 @@
 use tokio::net::TcpStream;
 use tokio_tungstenite::{tungstenite, MaybeTlsStream, WebSocketStream};
-use vacs_protocol::SignalingMessage;
+use vacs_protocol::ws::SignalingMessage;
 
 pub async fn connect_to_websocket(addr: &str) -> WebSocketStream<MaybeTlsStream<TcpStream>> {
     let (ws_stream, response) = tokio_tungstenite::connect_async(addr)

@@ -1,19 +1,26 @@
-use crate::config;
 use crate::state::AppState;
-use crate::ws::ws_handler;
-use axum::routing::any;
+use crate::{config, http, ws};
 use axum::Router;
+use axum_login::{AuthManagerLayer, AuthnBackend};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
+use tower_sessions::service::SignedCookie;
+use tower_sessions::SessionStore;
 
-pub fn create_app() -> Router<Arc<AppState>> {
-    Router::new().route("/ws", any(ws_handler)).layer((
-        TraceLayer::new_for_http().make_span_with(DefaultMakeSpan::default().include_headers(true)),
-        TimeoutLayer::new(config::SERVER_SHUTDOWN_TIMEOUT),
-    ))
+pub fn create_app<B, S>(auth_layer: AuthManagerLayer<B, S, SignedCookie>) -> Router<Arc<AppState>>
+where
+    B: AuthnBackend + Send + Sync + 'static + Clone,
+    S: SessionStore + Send + Sync + 'static + Clone,
+{
+    Router::new()
+        .merge(http::routes())
+        .merge(ws::routes())
+        .layer(TraceLayer::new_for_http().make_span_with(DefaultMakeSpan::default()))
+        .layer(TimeoutLayer::new(config::SERVER_SHUTDOWN_TIMEOUT))
+        .layer(auth_layer)
 }
 
 pub async fn serve(listener: TcpListener, app: Router<Arc<AppState>>, state: Arc<AppState>) {

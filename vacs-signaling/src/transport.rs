@@ -3,7 +3,7 @@ pub mod tokio;
 
 use crate::error::SignalingError;
 use async_trait::async_trait;
-use vacs_protocol::SignalingMessage;
+use vacs_protocol::ws::SignalingMessage;
 
 #[async_trait]
 pub trait SignalingTransport: Send + Sync {

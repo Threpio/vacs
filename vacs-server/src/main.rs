@@ -6,8 +6,11 @@ use tokio::signal;
 use tokio::sync::watch;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use vacs_server::app::create_app;
+use vacs_server::auth::setup_auth_layer;
 use vacs_server::config::AppConfig;
+use vacs_server::session::{setup_redis_connection_pool, setup_redis_session_manager};
 use vacs_server::state::AppState;
+use vacs_vatsim::oauth::connect::ConnectOAuthClient;
 use vacs_vatsim::user::connect::ConnectUserService;
 
 #[tokio::main]
@@ -16,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
                 format!(
-                    "{}=trace,tower_http=debug,axum::rejection=trace",
+                    "{}=trace,tower_http=debug,tower_sessions=debug,axum::rejection=trace",
                     env!("CARGO_CRATE_NAME")
                 )
                 .into()
@@ -26,19 +29,20 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let config = load_config()?;
-
-    let vatsim_user_service = Arc::new(ConnectUserService::new(
-        &config.vatsim.user_service.user_details_endpoint_url,
-    )?);
+    
+    let redis_pool = setup_redis_connection_pool(&config).await?;
 
     let (shutdown_tx, shutdown_rx) = watch::channel(());
 
     let app_state = Arc::new(AppState::new(
         config.clone(),
-        vatsim_user_service,
+        redis_pool.clone(),
         shutdown_rx.clone(),
     ));
-    let app = create_app();
+
+    let auth_layer = setup_auth_layer(&config, redis_pool).await?;
+    
+    let app = create_app(auth_layer);
 
     let listener = tokio::net::TcpListener::bind(config.server.bind_addr).await?;
 
@@ -57,10 +61,17 @@ async fn main() -> anyhow::Result<()> {
 fn load_config() -> anyhow::Result<AppConfig> {
     Config::builder()
         .set_default("server.bind_addr", "127.0.0.1:3000")?
+        .set_default("redis.addr", "redis://127.0.0.1:6379")?
+        .set_default("session.secure", true)?
+        .set_default("session.http_only", true)?
+        .set_default("session.expiry_secs", 604800)?
         .set_default("auth.login_flow_timeout_millis", 10000)?
+        .set_default("auth.oauth.auth_url", "https://auth-dev.vatsim.net/oauth/authorize")?
+        .set_default("auth.oauth.token_url", "https://auth-dev.vatsim.net/oauth/token")?
+        .set_default("auth.oauth.redirect_url", "vacs://auth/callback")?
         .set_default(
             "vatsim.user_service.user_details_endpoint_url",
-            "https://auth.vatsim.net/api/user",
+            "https://auth-dev.vatsim.net/api/user",
         )?
         .add_source(
             File::with_name(

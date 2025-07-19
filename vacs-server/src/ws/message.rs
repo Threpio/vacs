@@ -2,7 +2,7 @@ use crate::ws::traits::{WebSocketSink, WebSocketStream};
 use axum::extract::ws;
 use futures_util::SinkExt;
 use futures_util::StreamExt;
-use vacs_protocol::SignalingMessage;
+use vacs_protocol::ws::SignalingMessage;
 
 /// Represents the outcome of [`receive_message`], indicating whether the message received should be handled, skipped or receiving errored.
 #[derive(Debug)]
@@ -84,7 +84,7 @@ mod tests {
     use test_log::test;
     use tokio::sync::{Mutex, mpsc};
     use tokio_tungstenite::tungstenite;
-    use vacs_protocol::ClientInfo;
+    use vacs_protocol::ws::ClientInfo;
 
     #[test(tokio::test)]
     async fn send_single_message() {

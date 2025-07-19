@@ -2,7 +2,7 @@ use pretty_assertions::{assert_eq, assert_matches};
 use std::time::Duration;
 use test_log::test;
 use tokio::sync::watch;
-use vacs_protocol::{ClientInfo, LoginFailureReason, SignalingMessage};
+use vacs_protocol::ws::{ClientInfo, LoginFailureReason, SignalingMessage};
 use vacs_server::test_utils::{TestApp, TestClient};
 use vacs_signaling::client;
 use vacs_signaling::error::SignalingError;

@@ -2,7 +2,7 @@ use crate::error::SignalingError;
 use crate::transport::SignalingTransport;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
-use vacs_protocol::SignalingMessage;
+use vacs_protocol::ws::SignalingMessage;
 
 pub struct MockHandle {
     pub outgoing_rx: mpsc::Receiver<SignalingMessage>,

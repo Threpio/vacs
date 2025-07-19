@@ -1,15 +1,17 @@
 use crate::config;
 use crate::config::AppConfig;
 use crate::ws::ClientSession;
+use anyhow::Context;
 use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, watch, RwLock};
-use vacs_protocol::{ClientInfo, ErrorReason, SignalingMessage};
-use vacs_vatsim::user::UserService;
+use tower_sessions_redis_store::fred::prelude::{Expiration, KeysInterface, Pool};
+use tracing::instrument;
+use uuid::Uuid;
+use vacs_protocol::ws::{ClientInfo, ErrorReason, SignalingMessage};
 
 pub struct AppState {
     pub config: AppConfig,
-    pub vatsim_user_service: Arc<dyn UserService>,
+    redis_pool: Pool,
     /// Key: CID
     clients: RwLock<HashMap<String, ClientSession>>,
     broadcast_tx: broadcast::Sender<SignalingMessage>,
@@ -17,15 +19,11 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(
-        config: AppConfig,
-        vatsim_user_service: Arc<dyn UserService>,
-        shutdown_rx: watch::Receiver<()>,
-    ) -> Self {
+    pub fn new(config: AppConfig, redis_pool: Pool, shutdown_rx: watch::Receiver<()>) -> Self {
         let (broadcast_tx, _) = broadcast::channel(config::BROADCAST_CHANNEL_CAPACITY);
         Self {
             config,
-            vatsim_user_service,
+            redis_pool,
             clients: RwLock::new(HashMap::new()),
             broadcast_tx,
             shutdown_rx,
@@ -162,6 +160,46 @@ impl AppState {
                     );
                 }
             }
+        }
+    }
+
+    #[instrument(level = "debug", skip(self), err)]
+    pub async fn generate_ws_auth_token(&self, cid: &str) -> anyhow::Result<String> {
+        tracing::debug!("Generating web socket auth token");
+
+        let token = Uuid::new_v4().to_string();
+
+        tracing::trace!("Storing web socket auth token in redis");
+        self.redis_pool
+            .set::<String, _, _>(
+                format!("ws.token.{token}"),
+                cid,
+                Some(Expiration::EX(30)),
+                None,
+                false,
+            )
+            .await
+            .context("Failed to store web socket auth token")?;
+
+        tracing::debug!("Web socket auth token generated");
+        Ok(token)
+    }
+
+    #[instrument(level = "debug", skip_all, err)]
+    pub async fn verify_ws_auth_token(&self, token: &str) -> anyhow::Result<String> {
+        tracing::debug!("Verifying web socket auth token");
+        
+        match self
+            .redis_pool
+            .get::<Option<String>, _>(format!("ws.token.{token}"))
+            .await
+        {
+            Ok(Some(cid)) => {
+                tracing::debug!(?cid, "Web socket auth token verified");
+                Ok(cid)
+            }
+            Ok(None) => anyhow::bail!("Web socket auth token not found"),
+            Err(err) => anyhow::bail!(err),
         }
     }
 }

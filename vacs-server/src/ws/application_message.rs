@@ -4,7 +4,7 @@ use crate::ws::message::send_message;
 use crate::ws::traits::WebSocketSink;
 use std::ops::ControlFlow;
 use std::sync::Arc;
-use vacs_protocol::SignalingMessage;
+use vacs_protocol::ws::SignalingMessage;
 
 pub async fn handle_application_message<T: WebSocketSink>(
     state: &Arc<AppState>,
@@ -134,7 +134,7 @@ mod tests {
     use axum::extract::ws::Utf8Bytes;
     use pretty_assertions::assert_eq;
     use test_log::test;
-    use vacs_protocol::LoginFailureReason;
+    use vacs_protocol::ws::LoginFailureReason;
 
     #[test(tokio::test)]
     async fn handle_application_message_list_clients() {

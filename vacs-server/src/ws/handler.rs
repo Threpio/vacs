@@ -1,4 +1,3 @@
-use crate::auth::handle_login;
 use crate::state::AppState;
 use crate::ws::message::send_message;
 use axum::extract::ws::WebSocket;
@@ -8,7 +7,8 @@ use futures_util::StreamExt;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::Instrument;
-use vacs_protocol::{LoginFailureReason, SignalingMessage};
+use vacs_protocol::ws::{LoginFailureReason, SignalingMessage};
+use crate::ws::auth::handle_websocket_login;
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
@@ -28,9 +28,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
     let (mut websocket_tx, mut websocket_rx) = socket.split();
 
-    let client_id = match handle_login(
-        &state.config.auth,
-        state.vatsim_user_service.clone(),
+    let client_id = match handle_websocket_login(
+        state.clone(),
         &mut websocket_rx,
         &mut websocket_tx,
     )

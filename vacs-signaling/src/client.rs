@@ -4,7 +4,7 @@ use crate::transport::SignalingTransport;
 use std::time::Duration;
 use tokio::sync::{broadcast, watch};
 use tracing::instrument;
-use vacs_protocol::{ClientInfo, SignalingMessage};
+use vacs_protocol::ws::{ClientInfo, SignalingMessage};
 
 pub struct SignalingClientBuilder<T: SignalingTransport> {
     transport: T,
@@ -255,7 +255,7 @@ mod tests {
     use pretty_assertions::assert_matches;
     use test_log::test;
     use tokio::sync::watch;
-    use vacs_protocol::{ErrorReason, LoginFailureReason};
+    use vacs_protocol::ws::{ErrorReason, LoginFailureReason};
 
     fn test_client_list() -> Vec<ClientInfo> {
         vec![

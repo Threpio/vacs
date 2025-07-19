@@ -8,8 +8,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use tokio::sync::{broadcast, mpsc, watch};
-use vacs_protocol::{ClientInfo, SignalingMessage};
-use vacs_vatsim::user::mock::MockUserService;
+use vacs_protocol::ws::{ClientInfo, SignalingMessage};
 
 pub struct MockSink {
     tx: mpsc::UnboundedSender<ws::Message>,
@@ -80,11 +79,9 @@ impl TestSetup {
         for i in 0..=5 {
             vatsim_users.insert(format!("token{i}"), format!("client{i}"));
         }
-        let vatsim_user_service = Arc::new(MockUserService::new(vatsim_users));
         let (shutdown_tx, shutdown_rx) = watch::channel(());
         let app_state = Arc::new(AppState::new(
             AppConfig::default(),
-            vatsim_user_service,
             shutdown_rx,
         ));
         let client_info = ClientInfo {

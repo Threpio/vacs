@@ -1,7 +1,7 @@
 use pretty_assertions::assert_eq;
 use std::time::Duration;
 use test_log::test;
-use vacs_protocol::SignalingMessage;
+use vacs_protocol::ws::SignalingMessage;
 use vacs_signaling::test_utils::TestRig;
 
 #[test(tokio::test)]

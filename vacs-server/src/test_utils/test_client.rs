@@ -5,7 +5,7 @@ use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
-use vacs_protocol::{ClientInfo, SignalingMessage};
+use vacs_protocol::ws::{ClientInfo, SignalingMessage};
 
 pub struct TestClient {
     id: String,

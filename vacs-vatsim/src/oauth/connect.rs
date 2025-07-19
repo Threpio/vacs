@@ -5,17 +5,30 @@ use oauth2::basic::BasicClient;
 use oauth2::url::Url;
 use oauth2::{
     AccessToken, AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, EndpointNotSet,
-    EndpointSet, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, RefreshToken, TokenResponse,
-    TokenUrl,
+    EndpointSet, RedirectUrl, RefreshToken, TokenResponse, TokenUrl,
 };
+use serde::Deserialize;
 use tracing::instrument;
 
+#[derive(Deserialize, Clone, Debug)]
 pub struct OAuthConfig {
-    auth_url: String,
-    token_url: String,
-    redirect_url: String,
-    client_id: String,
-    client_secret: String,
+    pub auth_url: String,
+    pub token_url: String,
+    pub redirect_url: String,
+    pub client_id: String,
+    pub client_secret: String,
+}
+
+impl Default for OAuthConfig {
+    fn default() -> Self {
+        Self {
+            auth_url: "https://auth-dev.vatsim.net/oauth/authorize".to_string(),
+            token_url: "https://auth-dev.vatsim.net/oauth/token".to_string(),
+            redirect_url: "vacs://auth/callback".to_string(),
+            client_id: "".to_string(),
+            client_secret: "".to_string(),
+        }
+    }
 }
 
 pub struct ConnectOAuthClient {
@@ -49,30 +62,23 @@ impl ConnectOAuthClient {
 #[async_trait]
 impl OAuthClient for ConnectOAuthClient {
     #[instrument(level = "debug", skip_all)]
-    fn auth_url(&self) -> (Url, CsrfToken, PkceCodeVerifier) {
+    fn auth_url(&self) -> (Url, CsrfToken) {
         tracing::trace!("Generating VATSIM OAuth2 URL");
 
-        let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
-        let (url, csrf_token) = self
-            .client
-            .authorize_url(CsrfToken::new_random)
-            .set_pkce_challenge(challenge)
-            .url();
-        (url, csrf_token, verifier)
+        let (url, csrf_token) = self.client.authorize_url(CsrfToken::new_random).url();
+        (url, csrf_token)
     }
 
     #[instrument(level = "debug", skip_all, err)]
     async fn exchange_code(
         &self,
-        code: AuthorizationCode,
-        verifier: PkceCodeVerifier,
-    ) -> anyhow::Result<(AccessToken, RefreshToken)> {
+        code: String,
+    ) -> anyhow::Result<(String, String)> {
         tracing::trace!("Exchanging OAuth2 code for token");
 
         let response = self
             .client
-            .exchange_code(code)
-            .set_pkce_verifier(verifier)
+            .exchange_code(AuthorizationCode::new(code))
             .request_async(&self.http_client)
             .await
             .context("Failed to exchange OAuth2 code for token")?;
@@ -83,8 +89,8 @@ impl OAuthClient for ConnectOAuthClient {
         }
 
         Ok((
-            response.access_token().clone(),
-            response.refresh_token().unwrap().clone(),
+            response.access_token().secret().clone(),
+            response.refresh_token().unwrap().secret().clone(),
         ))
     }
 
