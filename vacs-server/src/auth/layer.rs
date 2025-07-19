@@ -1,0 +1,55 @@
+use crate::auth::users::Backend;
+use crate::auth::users::mock::MockBackend;
+use crate::config::AppConfig;
+use crate::http::session::{setup_memory_session_manager, setup_redis_session_manager};
+use anyhow::Context;
+use axum_login::{AuthManagerLayer, AuthManagerLayerBuilder};
+use oauth2::basic::BasicClient;
+use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
+use tower_sessions::MemoryStore;
+use tower_sessions::service::SignedCookie;
+use tower_sessions_redis_store::RedisStore;
+use tower_sessions_redis_store::fred::prelude::Pool;
+use tracing::instrument;
+
+#[instrument(level = "debug", skip_all, err)]
+pub async fn setup_auth_layer(
+    config: &AppConfig,
+    redis_pool: Pool,
+) -> anyhow::Result<AuthManagerLayer<Backend, RedisStore<Pool>, SignedCookie>> {
+    tracing::debug!("Setting up authentication layer");
+
+    let client = BasicClient::new(ClientId::new(config.auth.oauth.client_id.clone()))
+        .set_client_secret(ClientSecret::new(config.auth.oauth.client_secret.clone()))
+        .set_auth_uri(AuthUrl::new(config.auth.oauth.auth_url.clone()).context("Invalid auth URL")?)
+        .set_token_uri(
+            TokenUrl::new(config.auth.oauth.token_url.clone()).context("Invalid token URL")?,
+        )
+        .set_redirect_uri(
+            RedirectUrl::new(config.auth.oauth.redirect_url.clone())
+                .context("Invalid redirect URL")?,
+        );
+    let backend = Backend::new(
+        client,
+        config.vatsim.user_service.user_details_endpoint_url.clone(),
+    )?;
+
+    let session_layer = setup_redis_session_manager(config, redis_pool).await?;
+
+    tracing::debug!("Authentication layer setup complete");
+    Ok(AuthManagerLayerBuilder::new(backend, session_layer).build())
+}
+
+#[instrument(level = "debug", skip_all, err)]
+pub async fn setup_mock_auth_layer(
+    config: &AppConfig,
+) -> anyhow::Result<AuthManagerLayer<MockBackend, MemoryStore, SignedCookie>> {
+    tracing::debug!("Setting up mock authentication layer");
+
+    let backend = MockBackend::default();
+
+    let session_layer = setup_memory_session_manager(config).await?;
+
+    tracing::debug!("Mock authentication layer setup complete");
+    Ok(AuthManagerLayerBuilder::new(backend, session_layer).build())
+}

@@ -14,5 +14,5 @@ pub use client::ClientSession;
 use std::sync::Arc;
 
 pub fn routes() -> Router<Arc<AppState>> {
-    Router::new().route("/ws", any(handler::ws_handler))
+    Router::new().route("/", any(handler::ws_handler))
 }

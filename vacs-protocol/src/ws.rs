@@ -181,10 +181,7 @@ mod tests {
         };
 
         let serialized = SignalingMessage::serialize(&message).unwrap();
-        assert_eq!(
-            serialized,
-            "{\"Login\":{\"token\":\"token1\"}}"
-        );
+        assert_eq!(serialized, "{\"Login\":{\"token\":\"token1\"}}");
 
         let deserialized = SignalingMessage::deserialize(&serialized).unwrap();
         match deserialized {

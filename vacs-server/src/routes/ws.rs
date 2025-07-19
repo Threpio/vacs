@@ -1,10 +1,10 @@
+use crate::auth::users::Backend;
 use crate::http::ApiResult;
 use crate::state::AppState;
-use crate::users::{AuthSession, Backend};
-use axum::extract::State;
-use axum::routing::get;
 use axum::Json;
 use axum::Router;
+use axum::extract::State;
+use axum::routing::get;
 use axum_login::login_required;
 use std::sync::Arc;
 
@@ -16,6 +16,7 @@ pub fn routes() -> Router<Arc<AppState>> {
 
 mod get {
     use super::*;
+    use crate::auth::users::AuthSession;
     use vacs_protocol::http::ws::WebSocketToken;
 
     pub async fn token(
@@ -25,9 +26,7 @@ mod get {
         let user = auth_session.user.unwrap();
 
         tracing::debug!(?user, "Generating websocket token");
-        let token = state
-            .generate_ws_auth_token(user.cid.as_str())
-            .await?;
+        let token = state.generate_ws_auth_token(user.cid.as_str()).await?;
 
         Ok(Json(WebSocketToken { token }))
     }

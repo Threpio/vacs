@@ -1,7 +1,7 @@
-use crate::users::Backend;
+use crate::auth::users::Backend;
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use axum_login::Error as LoginError;
 use serde::Serialize;
 use thiserror::Error;

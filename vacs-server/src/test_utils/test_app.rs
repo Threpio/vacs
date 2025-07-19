@@ -1,7 +1,10 @@
-use crate::app::{create_app, serve};
+use crate::auth::layer::setup_mock_auth_layer;
 use crate::config::{AppConfig, AuthConfig};
-use crate::session::setup_memory_session_manager;
+use crate::routes::create_app;
 use crate::state::AppState;
+use crate::store::Store;
+use crate::store::memory::MemoryStore;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -26,17 +29,24 @@ impl TestApp {
         let (shutdown_tx, shutdown_rx) = watch::channel(());
         let state = Arc::new(AppState::new(
             config.clone(),
+            Store::Memory(MemoryStore::default()),
             shutdown_rx,
         ));
 
-        let session_layer = setup_memory_session_manager(&config).await.unwrap();
-        let app = create_app(session_layer);
+        let auth_layer = setup_mock_auth_layer(&config).await.unwrap();
+        let app = create_app(auth_layer);
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
 
         let state_clone = state.clone();
         let handle = tokio::spawn(async move {
-            serve(listener, app, state_clone).await;
+            axum::serve(
+                listener,
+                app.with_state(state_clone)
+                    .into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .await
+            .unwrap()
         });
 
         Self {

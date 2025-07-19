@@ -1,7 +1,7 @@
 use std::time::Duration;
 use test_log::test;
 use vacs_protocol::ws::SignalingMessage;
-use vacs_server::test_utils::{setup_n_test_clients, TestApp};
+use vacs_server::test_utils::{TestApp, setup_n_test_clients};
 
 #[test(tokio::test)]
 async fn call_offer() -> anyhow::Result<()> {
@@ -32,7 +32,11 @@ async fn call_offer() -> anyhow::Result<()> {
 
     match &call_offer_messages[0] {
         SignalingMessage::CallOffer { peer_id, sdp } => {
-            assert_eq!(peer_id, &client1.id(), "CallOffer targeted the wrong client");
+            assert_eq!(
+                peer_id,
+                &client1.id(),
+                "CallOffer targeted the wrong client"
+            );
             assert_eq!(sdp, "sdp1", "CallOffer contains the wrong SDP");
         }
         message => panic!(
@@ -99,7 +103,11 @@ async fn call_offer_answer() -> anyhow::Result<()> {
 
     match &call_offer_messages[0] {
         SignalingMessage::CallOffer { peer_id, sdp } => {
-            assert_eq!(peer_id, &client1.id(), "CallOffer targeted the wrong client");
+            assert_eq!(
+                peer_id,
+                &client1.id(),
+                "CallOffer targeted the wrong client"
+            );
             assert_eq!(sdp, "sdp1", "CallOffer contains the wrong SDP");
         }
         message => panic!(
@@ -129,7 +137,11 @@ async fn call_offer_answer() -> anyhow::Result<()> {
 
     match &call_answer_messages[0] {
         SignalingMessage::CallAnswer { peer_id, sdp } => {
-            assert_eq!(peer_id, &client2.id(), "CallAnswer targeted the wrong client");
+            assert_eq!(
+                peer_id,
+                &client2.id(),
+                "CallAnswer targeted the wrong client"
+            );
             assert_eq!(sdp, "sdp2", "CallAnswer contains the wrong SDP");
         }
         message => panic!(

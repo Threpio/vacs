@@ -20,4 +20,4 @@ tauri = { workspace = true, features = [] }
 tauri-plugin-opener = { workspace = true }
 tokio = { workspace = true }
 vacs-signaling = { workspace = true }
-vacs-vatsim = { workspace = true, features = ["oauth"] }
+vacs-vatsim = { workspace = true }

@@ -1,7 +1,7 @@
-use crate::http::error::AppError;
+use crate::auth::users::{AuthSession, Credentials};
 use crate::http::ApiResult;
+use crate::http::error::AppError;
 use crate::state::AppState;
-use crate::users::AuthSession;
 use anyhow::Context;
 use axum::extract::Query;
 use axum::routing::get;
@@ -21,7 +21,6 @@ pub fn routes() -> Router<Arc<AppState>> {
 
 mod get {
     use super::*;
-    use crate::users::Credentials;
 
     pub async fn vatsim(auth_session: AuthSession, session: Session) -> ApiResult<InitVatsimLogin> {
         let (url, csrf_token) = auth_session.backend.authorize_url();

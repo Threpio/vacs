@@ -1,7 +1,7 @@
 use futures_util::{SinkExt, StreamExt};
 use test_log::test;
 use tokio_tungstenite::tungstenite;
-use vacs_server::test_utils::{connect_to_websocket, TestApp};
+use vacs_server::test_utils::{TestApp, connect_to_websocket};
 
 #[test(tokio::test)]
 async fn websocket_ping_pong() {

@@ -1,5 +1,7 @@
 use crate::config::AppConfig;
 use crate::state::AppState;
+use crate::store::Store;
+use crate::store::memory::MemoryStore;
 use crate::ws::ClientSession;
 use axum::extract::ws;
 use futures_util::{Sink, Stream};
@@ -82,6 +84,7 @@ impl TestSetup {
         let (shutdown_tx, shutdown_rx) = watch::channel(());
         let app_state = Arc::new(AppState::new(
             AppConfig::default(),
+            Store::Memory(MemoryStore::default()),
             shutdown_rx,
         ));
         let client_info = ClientInfo {

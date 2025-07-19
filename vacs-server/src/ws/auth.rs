@@ -1,6 +1,5 @@
-use crate::config::AuthConfig;
 use crate::state::AppState;
-use crate::ws::message::{receive_message, send_message, MessageResult};
+use crate::ws::message::{MessageResult, receive_message, send_message};
 use axum::extract::ws;
 use axum::extract::ws::WebSocket;
 use futures_util::stream::{SplitSink, SplitStream};

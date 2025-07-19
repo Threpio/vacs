@@ -1,7 +1,5 @@
 use serde::Deserialize;
 use std::time::Duration;
-use tower_sessions::cookie::SameSite;
-use vacs_vatsim::oauth::connect::OAuthConfig;
 
 pub const BROADCAST_CHANNEL_CAPACITY: usize = 100;
 pub const CLIENT_CHANNEL_CAPACITY: usize = 100;
@@ -57,7 +55,7 @@ impl Default for SessionConfig {
             secure: true,
             http_only: true,
             expiry_secs: 604800, // 7 days
-            signing_key: "super-sikrit-signing-key".to_string(),
+            signing_key: "".to_string(),
         }
     }
 }
@@ -73,6 +71,27 @@ impl Default for AuthConfig {
         Self {
             login_flow_timeout_millis: 10000,
             oauth: OAuthConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct OAuthConfig {
+    pub auth_url: String,
+    pub token_url: String,
+    pub redirect_url: String,
+    pub client_id: String,
+    pub client_secret: String,
+}
+
+impl Default for OAuthConfig {
+    fn default() -> Self {
+        Self {
+            auth_url: "https://auth-dev.vatsim.net/oauth/authorize".to_string(),
+            token_url: "https://auth-dev.vatsim.net/oauth/token".to_string(),
+            redirect_url: "vacs://auth/callback".to_string(),
+            client_id: "".to_string(),
+            client_secret: "".to_string(),
         }
     }
 }

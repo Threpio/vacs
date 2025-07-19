@@ -1,17 +1,18 @@
 use crate::config;
 use crate::config::AppConfig;
+use crate::store::{Store, StoreBackend};
 use crate::ws::ClientSession;
 use anyhow::Context;
 use std::collections::HashMap;
-use tokio::sync::{broadcast, mpsc, watch, RwLock};
-use tower_sessions_redis_store::fred::prelude::{Expiration, KeysInterface, Pool};
+use std::time::Duration;
+use tokio::sync::{RwLock, broadcast, mpsc, watch};
 use tracing::instrument;
 use uuid::Uuid;
 use vacs_protocol::ws::{ClientInfo, ErrorReason, SignalingMessage};
 
 pub struct AppState {
     pub config: AppConfig,
-    redis_pool: Pool,
+    store: Store,
     /// Key: CID
     clients: RwLock<HashMap<String, ClientSession>>,
     broadcast_tx: broadcast::Sender<SignalingMessage>,
@@ -19,11 +20,11 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(config: AppConfig, redis_pool: Pool, shutdown_rx: watch::Receiver<()>) -> Self {
+    pub fn new(config: AppConfig, store: Store, shutdown_rx: watch::Receiver<()>) -> Self {
         let (broadcast_tx, _) = broadcast::channel(config::BROADCAST_CHANNEL_CAPACITY);
         Self {
             config,
-            redis_pool,
+            store,
             clients: RwLock::new(HashMap::new()),
             broadcast_tx,
             shutdown_rx,
@@ -169,14 +170,12 @@ impl AppState {
 
         let token = Uuid::new_v4().to_string();
 
-        tracing::trace!("Storing web socket auth token in redis");
-        self.redis_pool
-            .set::<String, _, _>(
-                format!("ws.token.{token}"),
+        tracing::trace!("Storing web socket auth token");
+        self.store
+            .set(
+                format!("ws.token.{token}").as_str(),
                 cid,
-                Some(Expiration::EX(30)),
-                None,
-                false,
+                Some(Duration::from_secs(30)),
             )
             .await
             .context("Failed to store web socket auth token")?;
@@ -188,12 +187,8 @@ impl AppState {
     #[instrument(level = "debug", skip_all, err)]
     pub async fn verify_ws_auth_token(&self, token: &str) -> anyhow::Result<String> {
         tracing::debug!("Verifying web socket auth token");
-        
-        match self
-            .redis_pool
-            .get::<Option<String>, _>(format!("ws.token.{token}"))
-            .await
-        {
+
+        match self.store.get(format!("ws.token.{token}").as_str()).await {
             Ok(Some(cid)) => {
                 tracing::debug!(?cid, "Web socket auth token verified");
                 Ok(cid)

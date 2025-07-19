@@ -3,7 +3,7 @@ use crate::APP_USER_AGENT;
 use anyhow::Context;
 use axum_login::{AuthUser, AuthnBackend, UserId};
 use oauth2::basic::BasicClient;
-use oauth2::url::Url;
+use oauth2::reqwest::Url;
 use oauth2::{reqwest, AuthorizationCode, CsrfToken, EndpointNotSet, EndpointSet, TokenResponse};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
@@ -137,7 +137,6 @@ struct ConnectUserDetailsData {
     cid: String,
 }
 
-#[cfg(test)]
 pub mod mock {
     use super::*;
     use dashmap::DashMap;
@@ -148,11 +147,26 @@ pub mod mock {
         user_details: DashMap<String, ConnectUserDetails>,
     }
 
-    impl MockBackend {
-        pub fn new() -> Self {
+    impl Default for MockBackend {
+        fn default() -> Self {
+            let access_tokens = DashMap::new();
+            let user_details = DashMap::new();
+
+            for i in 0..=5 {
+                access_tokens.insert(format!("code{i}"), format!("token{i}"));
+                user_details.insert(
+                    format!("token{i}"),
+                    ConnectUserDetails {
+                        data: ConnectUserDetailsData {
+                            cid: format!("cid{i}"),
+                        },
+                    },
+                );
+            }
+
             Self {
-                access_tokens: DashMap::new(),
-                user_details: DashMap::new(),
+                access_tokens,
+                user_details,
             }
         }
     }
@@ -171,11 +185,7 @@ pub mod mock {
                 return Ok(None);
             }
 
-            let Some(access_token) = self
-                .access_tokens
-                .get(&creds.code)
-                .map(|t| t.clone())
-            else {
+            let Some(access_token) = self.access_tokens.get(&creds.code).map(|t| t.clone()) else {
                 return Err(AppError::Unauthorized("Invalid code".to_string()));
             };
 

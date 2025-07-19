@@ -1,5 +1,5 @@
 use tokio::net::TcpStream;
-use tokio_tungstenite::{tungstenite, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, tungstenite};
 use vacs_protocol::ws::SignalingMessage;
 
 pub async fn connect_to_websocket(addr: &str) -> WebSocketStream<MaybeTlsStream<TcpStream>> {
