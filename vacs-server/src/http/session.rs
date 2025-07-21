@@ -1,8 +1,8 @@
 use crate::config::AppConfig;
-use tower_sessions::cookie::{time, Key, SameSite};
+use tower_sessions::cookie::{Key, SameSite, time};
 use tower_sessions::service::SignedCookie;
 use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer, SessionStore};
-use tower_sessions_redis_store::{fred::prelude::*, RedisStore};
+use tower_sessions_redis_store::{RedisStore, fred::prelude::*};
 use tracing::instrument;
 
 #[instrument(level = "info", skip_all, err)]

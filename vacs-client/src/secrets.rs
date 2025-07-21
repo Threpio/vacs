@@ -2,8 +2,8 @@ pub mod cookies;
 
 use anyhow::Context;
 use base64::prelude::*;
-use keyring::error::Error::NoEntry;
 use keyring::Entry;
+use keyring::error::Error::NoEntry;
 
 pub enum SecretKey {
     CookieStoreEncryptionKey,

@@ -1,10 +1,10 @@
-use crate::http::error::AppError;
 use crate::APP_USER_AGENT;
+use crate::http::error::AppError;
 use anyhow::Context;
 use axum_login::{AuthUser, AuthnBackend, UserId};
 use oauth2::basic::BasicClient;
 use oauth2::reqwest::Url;
-use oauth2::{reqwest, AuthorizationCode, CsrfToken, EndpointNotSet, EndpointSet, TokenResponse};
+use oauth2::{AuthorizationCode, CsrfToken, EndpointNotSet, EndpointSet, TokenResponse, reqwest};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
@@ -169,7 +169,7 @@ pub mod mock {
             }
         }
     }
-    
+
     impl AuthnBackend for MockBackend {
         type User = User;
         type Credentials = Credentials;

@@ -1,8 +1,8 @@
-use crate::config::{AppConfig, BackendEndpoint, APP_USER_AGENT};
+use crate::config::{APP_USER_AGENT, AppConfig, BackendEndpoint};
 use crate::secrets::cookies::SecureCookieStore;
 use anyhow::Context;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use std::sync::Arc;
 use url::Url;
 

@@ -11,7 +11,7 @@ pub async fn open_auth_url(app_state: &AppState) -> anyhow::Result<()> {
         .await
         .context("Failed to get auth URL")?
         .url;
-    
+
     log::info!("Opening auth URL: {}", auth_url);
 
     tauri_plugin_opener::open_url(auth_url, None::<&str>)
@@ -64,7 +64,7 @@ pub async fn check_auth_session(app: &AppHandle) -> anyhow::Result<bool> {
         .http_get::<UserInfo>(BackendEndpoint::UserInfo, None)
         .await
         .context("Failed to fetch user info");
-    
+
     if let Ok(user_info) = user_info {
         log::info!("Authenticated as CID {}", user_info.cid);
         app.emit("vatsim-cid", user_info.cid)?;

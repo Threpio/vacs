@@ -3,7 +3,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
-    Generic(#[from]anyhow::Error)
+    Generic(#[from] anyhow::Error),
 }
 
 impl serde::Serialize for Error {

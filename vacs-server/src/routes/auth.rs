@@ -1,6 +1,6 @@
 use crate::auth::users::{AuthSession, Backend, Credentials};
-use crate::http::error::AppError;
 use crate::http::ApiResult;
+use crate::http::error::AppError;
 use crate::state::AppState;
 use anyhow::Context;
 use axum::routing::{get, post};
