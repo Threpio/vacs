@@ -1,6 +1,7 @@
 use crate::config::BackendEndpoint;
 use crate::state::AppState;
 use anyhow::Context;
+use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager};
 use url::Url;
 use vacs_protocol::http::auth::{AuthExchangeToken, InitVatsimLogin, UserInfo};
@@ -52,7 +53,7 @@ pub async fn handle_auth_callback(app: &AppHandle, url: &str) -> anyhow::Result<
         .cid;
 
     log::info!("Successfully authenticated as CID {cid}");
-    app.emit("vatsim-cid", cid).ok();
+    app.emit("auth:authenticated", cid).ok();
 
     Ok(())
 }
@@ -67,10 +68,11 @@ pub async fn check_auth_session(app: &AppHandle) -> anyhow::Result<bool> {
 
     if let Ok(user_info) = user_info {
         log::info!("Authenticated as CID {}", user_info.cid);
-        app.emit("vatsim-cid", user_info.cid).ok();
+        app.emit("auth:authenticated", user_info.cid).ok();
         Ok(true)
     } else {
         log::info!("Not authenticated");
+        app.emit("auth:unauthenticated", Value::Null).ok();
         Ok(false)
     }
 }

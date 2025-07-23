@@ -15,7 +15,7 @@ const ButtonColors: Record<ButtonColor, string> = {
   cyan: "bg-[#92e1fe] border-t-cyan-100 border-l-cyan-100 border-r-cyan-950 border-b-cyan-950 rounded-md",
   green: "bg-[#4b8747] border-t-green-200 border-l-green-200 border-r-green-950 border-b-green-950 rounded-md",
   gray: "bg-gray-300 border-t-gray-100 border-l-gray-100 border-r-gray-700 border-b-gray-700 shadow-[0_0_0_1px_#364153] text-lg",
-  blue: "bg-[#5796f8] border-t-blue-300 border-l-blue-300 border-r-blue-900 border-b-blue-900 text-white rounded-md",
+  blue: "bg-blue-700 border-t-blue-300 border-l-blue-300 border-r-blue-900 border-b-blue-900 text-white rounded-md",
   emerald: "bg-[#4b8747] border-t-green-200 border-l-green-200 border-r-green-950 border-b-green-950 rounded-md" // same background color as green, kept for separation of button types
 };
 

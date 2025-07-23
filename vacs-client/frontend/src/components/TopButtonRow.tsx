@@ -1,7 +1,6 @@
 import {Link, useLocation} from "wouter";
 import wrenchAndDriver from "../assets/wrench-and-driver.svg";
-import Button from "./ui/button.tsx";
-import {invoke} from "@tauri-apps/api/core";
+import Button from "./ui/Button.tsx";
 
 function TopButtonRow() {
     const [location] = useLocation();
@@ -28,7 +27,7 @@ function TopButtonRow() {
                     <img src={wrenchAndDriver} alt="Settings" className="h-12 w-12" draggable={false} />
                 </Button>
             </Link>
-            <Button color="cyan" className="min-w-20" onClick={() => invoke("open_auth_url")}></Button>
+            <Button color="cyan" className="min-w-20"></Button>
         </div>
     );
 }

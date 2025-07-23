@@ -1,5 +1,5 @@
 import {render} from "preact";
 import App from "./App";
-import "./main.css";
+import "./styles/main.css";
 
 render(<App/>, document.getElementById("root")!);
