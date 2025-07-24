@@ -1,4 +1,5 @@
 import {useEffect, useState} from "preact/hooks";
+import StatusIndicator from "./ui/StatusIndicator.tsx";
 
 type TimeState = {
     hours: string;
@@ -20,7 +21,7 @@ function Clock() {
             const minutes = now.getUTCMinutes().toString().padStart(2, '0');
             const day = now.getUTCDate().toString().padStart(2, '0');
 
-            setTime({ hours, minutes, day });
+            setTime({hours, minutes, day});
         };
 
         updateClock();
@@ -34,7 +35,10 @@ function Clock() {
             <div className="h-1/2 flex items-center">
                 <p className="font-bold leading-3 tracking-wider text-xl">{time.hours}:{time.minutes}</p>
             </div>
-            <div className="h-1/2 flex items-center justify-end">
+            <div className="h-1/2 flex items-center justify-between">
+                <div className="h-full py-1.5 pl-0.5">
+                    <StatusIndicator/>
+                </div>
                 <p className="font-bold leading-3 tracking-wider text-xl text-gray-500">{time.day}</p>
             </div>
         </div>
