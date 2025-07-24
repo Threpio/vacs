@@ -10,6 +10,7 @@ import LoginPage from "./pages/LoginPage.tsx";
 import {useAuthStore} from "./stores/auth-store.ts";
 import {setupAuthListeners} from "./listeners/auth-listener.ts";
 import CallList from "./components/CallList.tsx";
+import ConnectPage from "./pages/ConnectPage.tsx";
 
 function App() {
     const authStatus = useAuthStore(state => state.status);
@@ -33,13 +34,18 @@ function App() {
                 <TopButtonRow/>
                 <div className="flex flex-row w-full h-[calc(100%-10rem)] pl-1">
                     {/* Main Area */}
-                    <div className="h-full w-[calc(100%-6rem)] overflow-hidden bg-[#B5BBC6] border-l-1 border-t-1 border-r-2 border-b-2 border-gray-700 rounded-sm flex flex-row">
+                    <div
+                        className="h-full w-[calc(100%-6rem)] overflow-hidden bg-[#B5BBC6] border-l-1 border-t-1 border-r-2 border-b-2 border-gray-700 rounded-sm flex flex-row">
                         <Switch>
                             <Route path="/">
                                 {authStatus === "unauthenticated" ? (
-                                    <LoginPage />
+                                    <LoginPage/>
                                 ) : (
-                                    <CallList />
+                                    false ? ( // connected?
+                                        <CallList/>
+                                    ) : (
+                                        <ConnectPage/>
+                                    )
                                 )}
                             </Route>
                             <Route path="/settings"/>
