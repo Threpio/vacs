@@ -3,7 +3,7 @@ import Button from "./ui/Button.tsx";
 import wrenchAndDriver from "../assets/wrench-and-driver.svg";
 import mission from "../assets/mission.svg";
 
-function TopButtonRow() {
+function FunctionKeys() {
     const [location] = useLocation();
 
     return (
@@ -35,4 +35,4 @@ function TopButtonRow() {
     );
 }
 
-export default TopButtonRow;
+export default FunctionKeys;

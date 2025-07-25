@@ -1,7 +1,7 @@
 import Clock from "./components/Clock.tsx";
 import InfoGrid from "./components/InfoGrid.tsx";
-import TopButtonRow from "./components/TopButtonRow.tsx";
-import IncomingList from "./components/IncomingList.tsx";
+import FunctionKeys from "./components/FunctionKeys.tsx";
+import CallQueue from "./components/CallQueue.tsx";
 import Button from "./components/ui/Button.tsx";
 import {useEffect} from "preact/hooks";
 import {invoke} from "@tauri-apps/api/core";
@@ -33,21 +33,21 @@ function App() {
             </div>
             <div className="w-full h-[calc(100%-3rem)] flex flex-col">
                 {/* Top Button Row */}
-                <TopButtonRow/>
+                <FunctionKeys/>
                 <div className="flex flex-row w-full h-[calc(100%-10rem)] pl-1">
                     {/* Main Area */}
                     <div
                         className="h-full w-[calc(100%-6rem)] overflow-hidden bg-[#B5BBC6] border-l-1 border-t-1 border-r-2 border-b-2 border-gray-700 rounded-sm flex flex-row">
                         <Switch>
                             <Route path="/">
-                                {authStatus === "unauthenticated" ? (
+                                {authStatus === "loading" ? (
+                                    <></>
+                                ) : authStatus === "unauthenticated" ? (
                                     <LoginPage/>
+                                ) : false ? ( // connected?
+                                    <CallList/>
                                 ) : (
-                                    false ? ( // connected?
-                                        <CallList/>
-                                    ) : (
-                                        <ConnectPage/>
-                                    )
+                                    <ConnectPage/>
                                 )}
                             </Route>
                             <Route path="/settings" component={SettingsPage}/>
@@ -58,7 +58,7 @@ function App() {
                         <Button color="cyan" className="h-16 shrink-0 flex justify-center items-center">
                             <img src={telephone} alt="Telephone" className="h-18 w-18" draggable={false} />
                         </Button>
-                        <IncomingList/>
+                        <CallQueue/>
                     </div>
                 </div>
                 {/* Bottom Button Row */}
@@ -69,7 +69,7 @@ function App() {
                         <Button color="cyan" className="text-xl w-46 text-slate-400" disabled={true}>
                             RADIO<br/>PRIO
                         </Button>
-                        <Button color="gray"
+                        <Button color="gray" hightlight="green"
                                 className="w-46 min-h-16 !font-semibold !text-xl !rounded-md">Phone</Button>
                     </div>
                     <Button color="cyan" className="text-xl w-44 px-10">END</Button>

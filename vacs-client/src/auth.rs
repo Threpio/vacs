@@ -13,7 +13,7 @@ pub async fn open_auth_url(app_state: &AppState) -> anyhow::Result<()> {
         .context("Failed to get auth URL")?
         .url;
 
-    log::info!("Opening auth URL: {}", auth_url);
+    log::info!("Opening auth URL: {auth_url}");
 
     tauri_plugin_opener::open_url(auth_url, None::<&str>)
         .context("Failed to open auth URL with the default browser")?;

@@ -2,7 +2,7 @@ import {useState} from "preact/hooks";
 import Button, {DisabledButtonColors} from "./ui/Button.tsx";
 import {clsx} from "clsx";
 
-function IncomingList() {
+function CallQueue() {
     const [showIncoming, setShowIncoming] = useState(false);
     const [fixIncomingActive, _setFixIncomingActive] = useState(false);
 
@@ -22,4 +22,4 @@ function IncomingList() {
     );
 }
 
-export default IncomingList;
+export default CallQueue;
