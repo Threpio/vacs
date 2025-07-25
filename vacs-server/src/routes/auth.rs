@@ -17,6 +17,10 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/vatsim", get(get::vatsim))
         .route("/vatsim/callback", post(post::vatsim_callback))
         .route("/user", get(get::user_info).layer(login_required!(Backend)))
+        .route(
+            "/logout",
+            post(post::logout).layer(login_required!(Backend)),
+        )
 }
 
 mod get {
@@ -47,6 +51,8 @@ mod get {
 
 mod post {
     use super::*;
+    use crate::http::StatusCodeResult;
+    use axum::http::StatusCode;
     use vacs_protocol::http::auth::AuthExchangeToken;
 
     pub async fn vatsim_callback(
@@ -81,5 +87,16 @@ mod post {
         Ok(Json(UserInfo {
             cid: user.cid.to_string(),
         }))
+    }
+
+    pub async fn logout(mut auth_session: AuthSession, session: Session) -> StatusCodeResult {
+        tracing::debug!("Logging user out and destroying session");
+        auth_session.logout().await.context("Failed to logout")?;
+        session
+            .delete()
+            .await
+            .context("Failed to destroy session")?;
+
+        Ok(StatusCode::NO_CONTENT)
     }
 }
