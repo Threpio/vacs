@@ -1,6 +1,7 @@
 import {Link, useLocation} from "wouter";
-import wrenchAndDriver from "../assets/wrench-and-driver.svg";
 import Button from "./ui/Button.tsx";
+import wrenchAndDriver from "../assets/wrench-and-driver.svg";
+import mission from "../assets/mission.svg";
 
 function TopButtonRow() {
     const [location] = useLocation();
@@ -27,7 +28,9 @@ function TopButtonRow() {
                     <img src={wrenchAndDriver} alt="Settings" className="h-12 w-12" draggable={false} />
                 </Button>
             </Link>
-            <Button color="cyan" className="min-w-20"></Button>
+            <Button color="cyan" className="min-w-20 flex justify-center items-center">
+                <img src={mission} alt="Settings" className="h-14 w-14" draggable={false} />
+            </Button>
         </div>
     );
 }
