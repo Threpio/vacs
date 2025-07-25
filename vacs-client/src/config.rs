@@ -18,6 +18,7 @@ impl AppConfig {
             .set_default("backend.endpoints.init_auth", "/auth/vatsim")?
             .set_default("backend.endpoints.exchange_code", "/auth/vatsim/callback")?
             .set_default("backend.endpoints.user_info", "/auth/user")?
+            .set_default("backend.endpoints.logout", "/auth/logout")?
             .set_default("backend.endpoints.ws_token", "/ws/token")?
             .add_source(
                 File::with_name(
@@ -52,6 +53,7 @@ impl BackendConfig {
             BackendEndpoint::InitAuth => &self.endpoints.init_auth,
             BackendEndpoint::ExchangeCode => &self.endpoints.exchange_code,
             BackendEndpoint::UserInfo => &self.endpoints.user_info,
+            BackendEndpoint::Logout => &self.endpoints.logout,
             BackendEndpoint::WsToken => &self.endpoints.ws_token,
         };
         format!("{}{}", self.base_url, path)
@@ -62,6 +64,7 @@ pub enum BackendEndpoint {
     InitAuth,
     ExchangeCode,
     UserInfo,
+    Logout,
     WsToken,
 }
 
@@ -70,6 +73,7 @@ pub struct BackendEndpointsConfigs {
     pub init_auth: String,
     pub exchange_code: String,
     pub user_info: String,
+    pub logout: String,
     pub ws_token: String,
 }
 

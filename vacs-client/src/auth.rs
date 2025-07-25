@@ -74,3 +74,22 @@ pub async fn check_auth_session(app: &AppHandle) -> anyhow::Result<bool> {
         Ok(false)
     }
 }
+
+pub async fn logout(app: &AppHandle) -> anyhow::Result<()> {
+    log::debug!("Logging out");
+
+    let app_state = app.state::<AppState>();
+    app_state
+        .http_post::<(), ()>(BackendEndpoint::Logout, None, None)
+        .await
+        .context("Failed to logout")?;
+
+    app_state
+        .clear_cookie_store()
+        .context("Failed to clear cookie store")?;
+
+    log::info!("Successfully logged out");
+    app.emit("vatsim-cid", "").ok();
+
+    Ok(())
+}

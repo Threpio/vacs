@@ -103,6 +103,18 @@ impl SecureCookieStore {
         Ok(())
     }
 
+    pub fn clear(&self) -> anyhow::Result<()> {
+        log::debug!("Clearing cookie store");
+        let mut store = self
+            .store
+            .write()
+            .map_err(|e| anyhow::anyhow!("Failed to lock cookie store: {e}"))?;
+        
+        store.clear();
+        
+        Ok(())
+    }
+
     fn get_or_generate_encryption_key() -> anyhow::Result<Vec<u8>> {
         match secrets::get_binary(SecretKey::CookieStoreEncryptionKey) {
             Ok(Some(key)) => {

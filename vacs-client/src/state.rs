@@ -1,6 +1,7 @@
 use crate::config::{APP_USER_AGENT, AppConfig, BackendEndpoint};
 use crate::secrets::cookies::SecureCookieStore;
 use anyhow::Context;
+use reqwest::StatusCode;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
@@ -35,6 +36,12 @@ impl AppState {
         Ok(())
     }
 
+    pub fn clear_cookie_store(&self) -> anyhow::Result<()> {
+        self.cookie_store
+            .clear()
+            .context("Failed to clear cookie store")
+    }
+
     fn parse_http_request_url(
         &self,
         endpoint: BackendEndpoint,
@@ -55,7 +62,7 @@ impl AppState {
         query: Option<&[(&str, &str)]>,
     ) -> anyhow::Result<R>
     where
-        R: DeserializeOwned,
+        R: DeserializeOwned + Default,
     {
         let request_url = self.parse_http_request_url(endpoint, query)?;
 
@@ -67,13 +74,19 @@ impl AppState {
             .await
             .context("Failed to send HTTP GET request")?
             .error_for_status()
-            .context("Received non-200 HTTP status for GET request")?
-            .json::<R>()
-            .await
-            .context("Failed to parse HTTP GET response")?;
-        log::trace!("HTTP GET request succeeded: {}", request_url.as_str());
+            .context("Received non-200 HTTP status for GET request")?;
 
-        Ok(response)
+        let result = if response.status() == StatusCode::NO_CONTENT {
+            R::default()
+        } else {
+            response
+                .json::<R>()
+                .await
+                .context("Failed to parse HTTP GET response")?
+        };
+
+        log::trace!("HTTP GET request succeeded: {}", request_url.as_str());
+        Ok(result)
     }
 
     pub async fn http_post<R, P>(
@@ -83,7 +96,7 @@ impl AppState {
         payload: Option<P>,
     ) -> anyhow::Result<R>
     where
-        R: DeserializeOwned,
+        R: DeserializeOwned + Default,
         P: Serialize,
     {
         let request_url = self.parse_http_request_url(endpoint, query)?;
@@ -100,12 +113,18 @@ impl AppState {
             .await
             .context("Failed to send HTTP POST request")?
             .error_for_status()
-            .context("Received non-200 HTTP status for POST request")?
-            .json::<R>()
-            .await
-            .context("Failed to parse HTTP POST response")?;
-        log::trace!("HTTP POST request succeeded: {}", request_url.as_str());
+            .context("Received non-200 HTTP status for POST request")?;
 
-        Ok(response)
+        let result = if response.status() == StatusCode::NO_CONTENT {
+            R::default()
+        } else {
+            response
+                .json::<R>()
+                .await
+                .context("Failed to parse HTTP POST response")?
+        };
+
+        log::trace!("HTTP POST request succeeded: {}", request_url.as_str());
+        Ok(result)
     }
 }

@@ -19,3 +19,14 @@ pub async fn check_auth_session(app: AppHandle) -> Result<bool, Error> {
         .context("Failed to check auth session")?;
     Ok(authenticated)
 }
+
+#[tauri::command]
+pub async fn logout(app: AppHandle) -> Result<(), Error> {
+    auth::logout(&app)
+        .await
+        .context("Failed to logout")
+        .map_err(|err| {
+            log::error!("Failed to logout and logout again: {}", err.backtrace());
+            Error::from(err)
+        })
+}

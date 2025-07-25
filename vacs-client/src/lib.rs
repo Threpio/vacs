@@ -42,6 +42,7 @@ pub fn run() {
             commands::app::frontend_ready,
             commands::auth::open_auth_url,
             commands::auth::check_auth_session,
+            commands::auth::logout,
         ])
         .build(tauri::generate_context!())
         .expect("Failed to build tauri application")
