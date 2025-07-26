@@ -1,5 +1,6 @@
 import {invoke, InvokeArgs} from "@tauri-apps/api/core";
 import {useErrorOverlayStore} from "./stores/error-overlay-store.ts";
+import {error} from "@tauri-apps/plugin-log";
 
 export type Error = {
     title: string;
@@ -7,11 +8,20 @@ export type Error = {
     timeout_ms?: number;
 };
 
-export async function invokeWithErrorOverlay(cmd: string, args?: InvokeArgs) {
+export async function invokeSafe<T>(cmd: string, args?: InvokeArgs): Promise<T | undefined> {
     try {
-        await invoke(cmd, args);
+        return await invoke<T>(cmd, args);
     } catch(e) {
         openErrorOverlayFromUnknown(e);
+    }
+}
+
+export async function invokeStrict<T>(cmd: string, args?: InvokeArgs): Promise<T> {
+    try {
+        return await invoke<T>(cmd, args);
+    } catch(e) {
+        openErrorOverlayFromUnknown(e);
+        throw e;
     }
 }
 
@@ -21,7 +31,7 @@ export function openErrorOverlayFromUnknown(e: unknown) {
     if (isError(e)) {
         openErrorOverlay(e.title, e.message, e.timeout_ms);
     } else {
-        console.error(e);
+        void error(JSON.stringify(e));
         openErrorOverlay("Unexpected error", "An unknown error occurred");
     }
 }

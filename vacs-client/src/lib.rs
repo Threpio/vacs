@@ -46,10 +46,12 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("Failed to build tauri application")
-        .run(move |app_handle, event| if let RunEvent::ExitRequested { .. } = event {
-            app_handle
-                .state::<AppState>()
-                .persist()
-                .expect("Failed to persist app state");
+        .run(move |app_handle, event| {
+            if let RunEvent::ExitRequested { .. } = event {
+                app_handle
+                    .state::<AppState>()
+                    .persist()
+                    .expect("Failed to persist app state");
+            }
         });
 }

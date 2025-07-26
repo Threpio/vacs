@@ -109,9 +109,9 @@ impl SecureCookieStore {
             .store
             .write()
             .map_err(|e| anyhow::anyhow!("Failed to lock cookie store: {e}"))?;
-        
+
         store.clear();
-        
+
         Ok(())
     }
 

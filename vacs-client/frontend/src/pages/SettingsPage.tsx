@@ -9,17 +9,16 @@ import {navigate} from "wouter/use-browser-location";
 import {useAuthStore} from "../stores/auth-store.ts";
 import {invoke} from "@tauri-apps/api/core";
 import {openErrorOverlayFromUnknown} from "../error.ts";
+import {invokeStrict} from "../error.ts";
 
 function SettingsPage() {
     const isAuthenticated = useAuthStore(state => state.status === "authenticated");
 
     const handleLogoutClick = async () => {
         try {
-            await invoke("logout");
+            await invokeStrict("logout");
             navigate("/");
-        } catch(e) {
-            openErrorOverlayFromUnknown(e);
-        }
+        } catch {}
     }
 
     return (

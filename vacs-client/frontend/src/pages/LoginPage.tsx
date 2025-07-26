@@ -1,8 +1,8 @@
-import {invokeWithErrorOverlay} from "../error.ts";
+import {invokeSafe} from "../error.ts";
 
 function LoginPage() {
     const handleLoginClick = () => {
-        void invokeWithErrorOverlay("open_auth_url");
+        void invokeSafe("open_auth_url");
     };
 
     return (
