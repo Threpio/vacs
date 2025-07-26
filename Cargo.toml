@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "vacs-audio",
     "vacs-client",
+    "vacs-macros",
     "vacs-protocol",
     "vacs-server",
     "vacs-signaling",
@@ -23,7 +24,6 @@ axum-login = "0.18.0"
 base64 = "0.22.1"
 bytes = "1.10.1"
 chacha20poly1305 = "0.10.1"
-clap = "4.5.41"
 config = "0.15.13"
 cookie_store = "0.22.0"
 cpal = "0.16.0"
@@ -36,10 +36,12 @@ log = "0.4.27"
 oauth2 = { version = "5.0.0", features = ["reqwest"] }
 opus = "0.3.0"
 pretty_assertions = "1.4.1"
+quote = "1.0.40"
 reqwest = { version = "0.12.22", features = ["json", "cookies"] }
 ringbuf = "0.4.8"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.141"
+syn = { version = "2.0.104", features = ["full"] }
 tauri = "2.7.0"
 tauri-build = "2.3.1"
 tauri-plugin-deep-link = "2.4.0"
@@ -55,15 +57,13 @@ tower-sessions = { version = "0.14.0", features = ["signed"] }
 tower-sessions-redis-store = "0.16.0"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 tracing = "0.1.41"
-tungstenite = "0.27.0"
 url = "2.5.4"
-uuid = "1.17.0"
 vacs-audio = { path = "vacs-audio" }
+vacs-macros = { path = "vacs-macros" }
 vacs-protocol = { path = "vacs-protocol" }
 vacs-server = { path = "vacs-server" }
 vacs-signaling = { path = "vacs-signaling" }
 vacs-vatsim = { path = "vacs-vatsim" }
-vacs-webrtc = { path = "vacs-webrtc" }
 webrtc = "0.13.0"
 wiremock = "0.6.4"
 
