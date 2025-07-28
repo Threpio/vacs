@@ -57,7 +57,7 @@ function Button(props: ButtonProps) {
     return (
         <button
             className={clsx(
-                "leading-5 w-20 cursor-pointer border-2 font-semibold",
+                "leading-5 w-20 cursor-pointer border-2 font-semibold disabled:cursor-not-allowed",
                 ButtonColors[props.color],
                 ActiveButtonColors[props.color],
                 DisabledButtonColors[props.color],
