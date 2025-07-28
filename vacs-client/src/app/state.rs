@@ -1,14 +1,15 @@
 use crate::config::{APP_USER_AGENT, AppConfig, BackendEndpoint};
-use crate::error::Error;
+use crate::error::{Error, FrontendError};
 use crate::secrets::cookies::SecureCookieStore;
 use crate::signaling;
+use crate::signaling::Connection;
 use anyhow::Context;
 use reqwest::StatusCode;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde_json::Value;
 use std::sync::Arc;
 use std::time::Duration;
-use serde_json::Value;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex;
 use url::Url;
@@ -68,7 +69,8 @@ impl AppStateInner {
             .token;
 
         log::debug!("Establishing signaling connection");
-        let mut connection = signaling::Connection::new(self.config.backend.ws_url.as_str()).await?;
+        let mut connection =
+            Connection::new(self.config.backend.ws_url.as_str()).await?;
 
         log::debug!("Logging in to signaling server");
         let client_list = connection.login(token.as_str()).await?;
@@ -80,7 +82,19 @@ impl AppStateInner {
         app.emit("signaling:connected", "LOVV_CTR").ok(); // TODO: Update display name
         app.emit("signaling:client-list", client_list).ok();
 
+        let (broadcast_rx, shutdown_rx) = connection.subscribe();
+        let app_clone = app.clone();
         self.connection = Some(connection);
+
+        log::debug!("Starting signaling handling interaction thread");
+        tokio::spawn(async move {
+            if let Err(err) =
+                Connection::handle_interaction(broadcast_rx, shutdown_rx, &app_clone).await
+            {
+                log::error!("Signaling interaction failed: {}", err);
+                app_clone.emit::<FrontendError>("error", err.into()).ok();
+            }
+        });
 
         Ok(())
     }

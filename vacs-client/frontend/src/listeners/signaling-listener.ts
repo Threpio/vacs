@@ -3,7 +3,7 @@ import {useSignalingStore} from "../stores/signaling-store.ts";
 import {ClientInfo} from "../types/client-info.ts";
 
 export function setupSignalingListeners() {
-    const { setConnected, setDisplayName, setClients } = useSignalingStore.getState();
+    const { setConnected, setDisplayName, setClients, addClient, removeClient } = useSignalingStore.getState();
 
     const unlistenFns: (Promise<UnlistenFn>)[] = [];
 
@@ -22,7 +22,17 @@ export function setupSignalingListeners() {
             setClients(event.payload);
         });
 
-        unlistenFns.push(unlisten1, unlisten2, unlisten3);
+        const unlisten4 = listen<ClientInfo>("signaling:client-connected", (event) => {
+            console.log("client-connected", event.payload);
+            addClient(event.payload);
+        });
+
+        const unlisten5 = listen<string>("signaling:client-disconnected", (event) => {
+            console.log("client-disconnected", event.payload);
+            removeClient(event.payload);
+        });
+
+        unlistenFns.push(unlisten1, unlisten2, unlisten3, unlisten4, unlisten5);
     };
 
     init();
