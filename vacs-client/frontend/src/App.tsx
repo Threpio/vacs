@@ -16,6 +16,7 @@ import telephone from "./assets/telephone.svg";
 import ErrorOverlay from "./components/ErrorOverlay.tsx";
 import {invokeSafe} from "./error.ts";
 import {setupErrorListener} from "./listeners/error-listener.ts";
+import MissionPage from "./pages/MissionPage.tsx";
 
 function App() {
     const authStatus = useAuthStore(state => state.status);
@@ -55,6 +56,7 @@ function App() {
                                 )}
                             </Route>
                             <Route path="/settings" component={SettingsPage}/>
+                            <Route path="/mission" component={MissionPage}/>
                         </Switch>
                     </div>
                     {/* Right Button Row */}

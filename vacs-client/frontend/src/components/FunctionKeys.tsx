@@ -22,15 +22,13 @@ function FunctionKeys() {
             <Button color="cyan" className="text-slate-400" disabled={true}>
                 <p>PLC<br/>LSP<br/>on/off</p>
             </Button>
-            <Button color="cyan">SPLIT</Button>
-            <Link to={location === "/settings" ? "/" : "/settings"} draggable={false}>
-                <Button color={location === "/settings" ? "blue" : "cyan"} className="h-full flex justify-center items-center">
-                    <img src={wrenchAndDriver} alt="Settings" className="h-12 w-12" draggable={false} />
-                </Button>
-            </Link>
-            <Button color="cyan" className="min-w-20 flex justify-center items-center">
-                <img src={mission} alt="Settings" className="h-14 w-14" draggable={false} />
-            </Button>
+            <Button color="cyan" className="text-slate-400">SPLIT</Button>
+            <LinkButton path="/settings" className="h-full">
+                <img src={wrenchAndDriver} alt="Settings" className="h-12 w-12" draggable={false}/>
+            </LinkButton>
+            <LinkButton path="/mission" className="h-full">
+                <img src={mission} alt="Mission" className="h-14 w-14" draggable={false}/>
+            </LinkButton>
         </div>
     );
 }

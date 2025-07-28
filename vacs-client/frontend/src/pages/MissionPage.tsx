@@ -1,0 +1,14 @@
+function MissionPage() {
+    return (
+        <div className="w-full h-full relative overflow-visible">
+            <div className="z-10 absolute h-[calc(100%+5rem+5rem+3px-0.5rem)] w-[calc(100%+3px)] translate-y-[calc(-4.75rem-1px)] translate-x-[calc(-1*(1px))] bg-blue-700 border-t-0 px-2 pb-2 flex flex-col overflow-auto rounded">
+                <p className="w-full text-white bg-blue-700 font-semibold text-center">Mission</p>
+                <div className="w-full grow rounded-b-sm bg-[#B5BBC6] flex justify-center items-center">
+                    <p className="text-slate-600">Not implemented</p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export default MissionPage;
