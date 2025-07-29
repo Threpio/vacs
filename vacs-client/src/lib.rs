@@ -14,8 +14,12 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
-                .level(log::LevelFilter::Info)
+                .level(log::LevelFilter::Warn)
                 .level_for("vacs_client_lib", log::LevelFilter::Trace)
+                .level_for("vacs_audio", log::LevelFilter::Trace)
+                .level_for("vacs_signaling", log::LevelFilter::Trace)
+                .level_for("vacs_vatsim", log::LevelFilter::Trace)
+                .level_for("vacs_webrtc", log::LevelFilter::Trace)
                 .build(),
         )
         .plugin(tauri_plugin_single_instance::init(|app, argv, _| {

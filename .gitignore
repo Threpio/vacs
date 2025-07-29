@@ -134,3 +134,6 @@ Cargo.lock
 
 # Local configuration file
 /config.toml
+
+# RustRover HTTP client files
+*.http
