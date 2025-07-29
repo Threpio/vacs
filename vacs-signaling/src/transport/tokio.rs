@@ -69,6 +69,12 @@ impl SignalingTransport for TokioTransport {
                     tracing::warn!(?reason, "Received Close WebSocket frame");
                     return Err(SignalingError::Disconnected);
                 }
+                Ok(tungstenite::Message::Ping(data)) => {
+                    if let Err(err) = self.websocket_tx.send(tungstenite::Message::Pong(data)).await {
+                        tracing::warn!(?err, "Failed to send Pong");
+                        return Err(SignalingError::Disconnected);
+                    }
+                }
                 Ok(other) => {
                     tracing::debug!(?other, "Skipping non-text WebSocket frame");
                 }
