@@ -22,6 +22,7 @@ import LinkButton from "./components/ui/LinkButton.tsx";
 import {setupSignalingListeners} from "./listeners/signaling-listener.ts";
 import {useSignalingStore} from "./stores/signaling-store.ts";
 import PhoneButton from "./components/ui/PhoneButton.tsx";
+import RadioPrioButton from "./components/ui/RadioPrioButton.tsx";
 
 function App() {
     const connected = useSignalingStore(state => state.connected);
@@ -80,9 +81,7 @@ function App() {
                     <div className="h-full flex flex-row gap-3">
                         <Button color="gray" className="text-xl w-46 text-gray-500" disabled={true}>Radio</Button>
                         <Button color="cyan" className="text-xl text-slate-400" disabled={true}>CPL</Button>
-                        <Button color="cyan" className="text-xl w-46 text-slate-400" disabled={true}>
-                            <p>RADIO<br/>PRIO</p>
-                        </Button>
+                        <RadioPrioButton/>
                         <PhoneButton/>
                     </div>
                     <Button color="cyan" className="text-xl w-44 px-10">END</Button>
