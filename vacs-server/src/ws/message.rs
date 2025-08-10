@@ -92,7 +92,7 @@ pub async fn receive_message<R: WebSocketStream>(websocket_rx: &mut R) -> Messag
 mod tests {
     use super::*;
     use crate::ws::test_util::*;
-    use pretty_assertions::assert_eq;
+    use pretty_assertions::{assert_eq, assert_matches};
     use std::sync::Arc;
     use test_log::test;
     use tokio::sync::{Mutex, mpsc};
@@ -224,7 +224,7 @@ mod tests {
     #[test(tokio::test)]
     async fn receive_single_message() {
         let mut mock_stream = MockStream::new(vec![Ok(ws::Message::from(
-            "{\"Login\":{\"id\":\"client1\",\"token\":\"token1\"}}",
+            "{\"type\":\"Login\",\"id\":\"client1\",\"token\":\"token1\"}",
         ))]);
 
         let result = receive_message(&mut mock_stream).await;
@@ -241,11 +241,11 @@ mod tests {
     async fn receive_multiple_messages() {
         let mut mock_stream = MockStream::new(vec![
             Ok(ws::Message::from(
-                "{\"Login\":{\"id\":\"client1\",\"token\":\"token1\"}}",
+                "{\"type\":\"Login\",\"id\":\"client1\",\"token\":\"token1\"}",
             )),
-            Ok(ws::Message::from("\"Logout\"")),
+            Ok(ws::Message::from("{\"type\":\"Logout\"}")),
             Ok(ws::Message::from(
-                "{\"CallOffer\":{\"peer_id\":\"client1\",\"sdp\":\"sdp1\"}}",
+                "{\"type\":\"CallOffer\",\"peerId\":\"client1\",\"sdp\":\"sdp1\"}",
             )),
         ]);
 
@@ -272,11 +272,11 @@ mod tests {
     async fn receive_messages_concurrently() {
         let mock_stream = Arc::new(Mutex::new(MockStream::new(vec![
             Ok(ws::Message::from(
-                "{\"Login\":{\"id\":\"client1\",\"token\":\"token1\"}}",
+                "{\"type\":\"Login\",\"id\":\"client1\",\"token\":\"token1\"}",
             )),
-            Ok(ws::Message::from("\"Logout\"")),
+            Ok(ws::Message::from("{\"type\":\"Logout\"}")),
             Ok(ws::Message::from(
-                "{\"CallOffer\":{\"peer_id\":\"client1\",\"sdp\":\"sdp1\"}}",
+                "{\"type\":\"CallOffer\",\"peerId\":\"client1\",\"sdp\":\"sdp1\"}",
             )),
         ])));
 
@@ -293,16 +293,16 @@ mod tests {
         let results = futures_util::future::join_all(tasks).await;
         for result in results {
             assert!(result.is_ok(), "Receiving message failed");
-            assert!(matches!(
+            assert_matches!(
                 result.unwrap(),
                 MessageResult::ApplicationMessage(_)
-            ));
+            );
         }
     }
 
     #[test(tokio::test)]
     async fn receive_replayed_messages() {
-        let msg = ws::Message::from("{\"Login\":{\"id\":\"client1\",\"token\":\"token1\"}}");
+        let msg = ws::Message::from("{\"type\":\"Login\",\"id\":\"client1\",\"token\":\"token1\"}");
         let mut mock_stream = MockStream::new(vec![Ok(msg.clone()), Ok(msg)]);
 
         for _ in 0..2 {
@@ -357,7 +357,7 @@ mod tests {
     async fn receive_mixed_messages() {
         let mut mock_stream = MockStream::new(vec![
             Ok(ws::Message::Ping(tungstenite::Bytes::from("ping"))),
-            Ok(ws::Message::from("\"Logout\"")),
+            Ok(ws::Message::from("{\"type\":\"Logout\"}")),
             Ok(ws::Message::Pong(tungstenite::Bytes::from("pong"))),
         ]);
 

@@ -403,7 +403,7 @@ mod tests {
             Some(ws::Message::Text(text)) => {
                 assert_eq!(
                     text,
-                    Utf8Bytes::from_static(r#"{"ClientList":{"clients":[]}}"#)
+                    Utf8Bytes::from_static(r#"{"type":"ClientList","clients":[]}"#)
                 );
             }
             _ => panic!("Expected client list message"),
@@ -427,7 +427,7 @@ mod tests {
                 assert_eq!(
                     text,
                     Utf8Bytes::from_static(
-                        r#"{"ClientList":{"clients":[{"id":"client1","displayName":"client1"}]}}"#
+                        r#"{"type":"ClientList","clients":[{"id":"client1","displayName":"client1"}]}"#
                     )
                 );
             }
@@ -440,7 +440,7 @@ mod tests {
     #[test(tokio::test)]
     async fn handle_interaction() {
         let setup = TestSetup::new().with_messages(vec![Ok(ws::Message::Text(
-            Utf8Bytes::from_static(r#"{"CallOffer":{"peer_id":"client2","sdp":"sdp1"}}"#),
+            Utf8Bytes::from_static(r#"{"type":"CallOffer","peerId":"client2","sdp":"sdp1"}"#),
         ))]);
         let (_, mut client2_rx) = setup.register_client("client2").await;
         let websocket_rx = setup.websocket_rx.clone();
@@ -453,7 +453,7 @@ mod tests {
                 assert_eq!(
                     text,
                     Utf8Bytes::from_static(
-                        r#"{"ClientList":{"clients":[{"id":"client2","displayName":"client2"}]}}"#
+                        r#"{"type":"ClientList","clients":[{"id":"client2","displayName":"client2"}]}"#
                     )
                 );
             }
@@ -484,7 +484,7 @@ mod tests {
             Some(ws::Message::Text(text)) => {
                 assert_eq!(
                     text,
-                    Utf8Bytes::from_static(r#"{"ClientList":{"clients":[]}}"#)
+                    Utf8Bytes::from_static(r#"{"type":"ClientList","clients":[]}"#)
                 );
             }
             _ => panic!("Expected client list message"),

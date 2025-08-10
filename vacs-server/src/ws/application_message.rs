@@ -159,7 +159,7 @@ mod tests {
         assert_eq!(
             message,
             ws::Message::Text(Utf8Bytes::from_static(
-                r#"{"ClientList":{"clients":[]}}"#
+                r#"{"type":"ClientList","clients":[]}"#
             ))
         )
     }
@@ -186,7 +186,7 @@ mod tests {
         assert_eq!(
             message,
             ws::Message::Text(Utf8Bytes::from_static(
-                r#"{"ClientList":{"clients":[{"id":"client2","displayName":"client2"}]}}"#
+                r#"{"type":"ClientList","clients":[{"id":"client2","displayName":"client2"}]}"#
             ))
         )
     }

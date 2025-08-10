@@ -181,7 +181,7 @@ mod tests {
         };
 
         let serialized = SignalingMessage::serialize(&message).unwrap();
-        assert_eq!(serialized, "{\"Login\":{\"token\":\"token1\"}}");
+        assert_eq!(serialized, "{\"type\":\"Login\",\"token\":\"token1\"}");
 
         let deserialized = SignalingMessage::deserialize(&serialized).unwrap();
         match deserialized {
@@ -201,7 +201,7 @@ mod tests {
         let serialized = SignalingMessage::serialize(&message).unwrap();
         assert_eq!(
             serialized,
-            "{\"LoginFailure\":{\"reason\":\"DuplicateId\"}}"
+            "{\"type\":\"LoginFailure\",\"reason\":\"DuplicateId\"}"
         );
 
         let deserialized = SignalingMessage::deserialize(&serialized).unwrap();
@@ -218,7 +218,7 @@ mod tests {
         let message = SignalingMessage::Logout {};
 
         let serialized = SignalingMessage::serialize(&message).unwrap();
-        assert_eq!(serialized, "\"Logout\"");
+        assert_eq!(serialized, "{\"type\":\"Logout\"}");
 
         let deserialized = SignalingMessage::deserialize(&serialized).unwrap();
         assert!(matches!(deserialized, SignalingMessage::Logout));
@@ -234,7 +234,7 @@ mod tests {
         let serialized = SignalingMessage::serialize(&message).unwrap();
         assert_eq!(
             serialized,
-            "{\"CallOffer\":{\"sdp\":\"sdp1\",\"peer_id\":\"client1\"}}"
+            "{\"type\":\"CallOffer\",\"sdp\":\"sdp1\",\"peerId\":\"client1\"}"
         );
 
         let deserialized = SignalingMessage::deserialize(&serialized).unwrap();
@@ -257,7 +257,7 @@ mod tests {
         let serialized = SignalingMessage::serialize(&message).unwrap();
         assert_eq!(
             serialized,
-            "{\"CallAnswer\":{\"sdp\":\"sdp1\",\"peer_id\":\"client1\"}}"
+            "{\"type\":\"CallAnswer\",\"sdp\":\"sdp1\",\"peerId\":\"client1\"}"
         );
 
         let deserialized = SignalingMessage::deserialize(&serialized).unwrap();
@@ -277,7 +277,7 @@ mod tests {
         };
 
         let serialized = SignalingMessage::serialize(&message).unwrap();
-        assert_eq!(serialized, "{\"CallReject\":{\"peer_id\":\"client1\"}}");
+        assert_eq!(serialized, "{\"type\":\"CallReject\",\"peerId\":\"client1\"}");
 
         let deserialized = SignalingMessage::deserialize(&serialized).unwrap();
         match deserialized {
@@ -295,7 +295,7 @@ mod tests {
         };
 
         let serialized = SignalingMessage::serialize(&message).unwrap();
-        assert_eq!(serialized, "{\"CallEnd\":{\"peer_id\":\"client1\"}}");
+        assert_eq!(serialized, "{\"type\":\"CallEnd\",\"peerId\":\"client1\"}");
 
         let deserialized = SignalingMessage::deserialize(&serialized).unwrap();
         match deserialized {
@@ -316,7 +316,7 @@ mod tests {
         let serialized = SignalingMessage::serialize(&message).unwrap();
         assert_eq!(
             serialized,
-            "{\"CallIceCandidate\":{\"candidate\":\"candidate1\",\"peer_id\":\"client1\"}}"
+            "{\"type\":\"CallIceCandidate\",\"candidate\":\"candidate1\",\"peerId\":\"client1\"}"
         );
 
         let deserialized = SignalingMessage::deserialize(&serialized).unwrap();
@@ -341,7 +341,7 @@ mod tests {
         let serialized = SignalingMessage::serialize(&message).unwrap();
         assert_eq!(
             serialized,
-            "{\"ClientConnected\":{\"client\":{\"id\":\"client1\",\"displayName\":\"station1\"}}}"
+            "{\"type\":\"ClientConnected\",\"client\":{\"id\":\"client1\",\"displayName\":\"station1\"}}"
         );
 
         let deserialized = SignalingMessage::deserialize(&serialized).unwrap();
@@ -361,7 +361,7 @@ mod tests {
         };
 
         let serialized = SignalingMessage::serialize(&message).unwrap();
-        assert_eq!(serialized, "{\"ClientDisconnected\":{\"id\":\"client1\"}}");
+        assert_eq!(serialized, "{\"type\":\"ClientDisconnected\",\"id\":\"client1\"}");
 
         let deserialized = SignalingMessage::deserialize(&serialized).unwrap();
         match deserialized {
@@ -377,7 +377,7 @@ mod tests {
         let message = SignalingMessage::ListClients {};
 
         let serialized = SignalingMessage::serialize(&message).unwrap();
-        assert_eq!(serialized, "\"ListClients\"");
+        assert_eq!(serialized, "{\"type\":\"ListClients\"}");
 
         let deserialized = SignalingMessage::deserialize(&serialized).unwrap();
         assert!(matches!(deserialized, SignalingMessage::ListClients));
@@ -401,7 +401,7 @@ mod tests {
         let serialized = SignalingMessage::serialize(&message).unwrap();
         assert_eq!(
             serialized,
-            "{\"ClientList\":{\"clients\":[{\"id\":\"client1\",\"displayName\":\"station1\"},{\"id\":\"client2\",\"displayName\":\"station2\"}]}}"
+            "{\"type\":\"ClientList\",\"clients\":[{\"id\":\"client1\",\"displayName\":\"station1\"},{\"id\":\"client2\",\"displayName\":\"station2\"}]}"
         );
 
         let deserialized = SignalingMessage::deserialize(&serialized).unwrap();
@@ -425,7 +425,7 @@ mod tests {
         let serialized = SignalingMessage::serialize(&message).unwrap();
         assert_eq!(
             serialized,
-            "{\"Error\":{\"reason\":\"MalformedMessage\",\"peer_id\":null}}"
+            "{\"type\":\"Error\",\"reason\":\"MalformedMessage\",\"peerId\":null}"
         );
 
         let deserialized = SignalingMessage::deserialize(&serialized).unwrap();
@@ -448,7 +448,7 @@ mod tests {
         let serialized = SignalingMessage::serialize(&message).unwrap();
         assert_eq!(
             serialized,
-            "{\"Error\":{\"reason\":{\"UnexpectedMessage\":\"error1\"},\"peer_id\":\"client1\"}}"
+            "{\"type\":\"Error\",\"reason\":{\"UnexpectedMessage\":\"error1\"},\"peerId\":\"client1\"}"
         );
 
         let deserialized = SignalingMessage::deserialize(&serialized).unwrap();
