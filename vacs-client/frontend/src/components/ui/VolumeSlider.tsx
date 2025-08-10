@@ -25,6 +25,7 @@ function VolumeSlider() {
     }
 
     const handleMouseDown = (event: MouseEvent | JSX.TargetedMouseEvent<HTMLDivElement>)=> {
+        if (event.button !== 0) return;
         isDragging.current = true;
         setDragging(true);
         updatePositionFromClientY(event.clientY);
