@@ -1,3 +1,4 @@
+pub mod opus;
 pub mod waveform;
 
 pub type AudioSourceId = usize;
