@@ -1,26 +1,78 @@
-use tauri::State;
-use vacs_audio::{Device, DeviceType};
 use crate::app::state::AppState;
-use crate::audio::{AudioDevices, AudioVolumes, VolumeType};
+use crate::audio::manager::SourceType;
+use crate::audio::{AudioDevices, AudioHosts, AudioVolumes, VolumeType};
 use crate::config::{Persistable, PersistedAudioConfig, AUDIO_SETTINGS_FILE_NAME};
 use crate::error::Error;
+use tauri::State;
+use vacs_audio::{Device, DeviceType};
 
 #[tauri::command]
 #[vacs_macros::log_err]
-pub async fn audio_get_devices(app_state: State<'_, AppState>, device_type: DeviceType) -> Result<AudioDevices, Error> {
+pub async fn audio_get_hosts(app_state: State<'_, AppState>) -> Result<AudioHosts, Error> {
+    log::info!("Getting audio hosts");
+
+    let mut selected = app_state.lock().await.config.audio.host_name.to_string();
+    if selected.is_empty() {
+        selected = Device::find_default_host();
+    }
+
+    let hosts = Device::find_all_hosts();
+
+    Ok(AudioHosts {
+        selected,
+        all: hosts,
+    })
+}
+
+#[tauri::command]
+#[vacs_macros::log_err]
+pub async fn audio_set_host(
+    app_state: State<'_, AppState>,
+    host_name: String,
+) -> Result<(), Error> {
+    log::info!("Setting audio host (name: {host_name})");
+
+    let persisted_audio_config: PersistedAudioConfig = {
+        let mut state = app_state.lock().await;
+        state.config.audio.host_name = host_name;
+        state.config.audio.clone().into()
+    };
+
+    persisted_audio_config.persist(AUDIO_SETTINGS_FILE_NAME)?;
+
+    Ok(())
+}
+
+#[tauri::command]
+#[vacs_macros::log_err]
+pub async fn audio_get_devices(
+    app_state: State<'_, AppState>,
+    device_type: DeviceType,
+) -> Result<AudioDevices, Error> {
     log::info!("Getting audio devices (type: {:?})", device_type);
 
     let selected = match device_type {
-        DeviceType::Input => {
-            app_state.lock().await.config.audio.input_device_name.to_string()
-        },
-        DeviceType::Output => {
-            app_state.lock().await.config.audio.output_device_name.to_string()
-        },
+        DeviceType::Input => app_state
+            .lock()
+            .await
+            .config
+            .audio
+            .input_device_name
+            .to_string(),
+        DeviceType::Output => app_state
+            .lock()
+            .await
+            .config
+            .audio
+            .output_device_name
+            .to_string(),
     };
 
     let default_device = Device::find_default(device_type)?.device_name();
-    let devices: Vec<String> = Device::find_all(device_type)?.into_iter().map(|device| device.device_name()).collect();
+    let devices: Vec<String> = Device::find_all(device_type)?
+        .into_iter()
+        .map(|device| device.device_name())
+        .collect();
 
     Ok(AudioDevices {
         selected,
@@ -31,8 +83,18 @@ pub async fn audio_get_devices(app_state: State<'_, AppState>, device_type: Devi
 
 #[tauri::command]
 #[vacs_macros::log_err]
-pub async fn audio_set_device(app_state: State<'_, AppState>, device_type: DeviceType, device_name: String) -> Result<(), Error> {
-    log::info!("Setting audio device (name: {:?}, type: {:?})", device_name, device_type);
+pub async fn audio_set_device(
+    app_state: State<'_, AppState>,
+    device_type: DeviceType,
+    device_name: String,
+) -> Result<(), Error> {
+    log::info!(
+        "Setting audio device (name: {:?}, type: {:?})",
+        device_name,
+        device_type
+    );
+
+    // TODO: Switch device in audio manager
 
     let persisted_audio_config: PersistedAudioConfig = {
         let mut state = app_state.lock().await;
@@ -55,7 +117,6 @@ pub async fn audio_set_device(app_state: State<'_, AppState>, device_type: Devic
 pub async fn audio_get_volumes(app_state: State<'_, AppState>) -> Result<AudioVolumes, Error> {
     log::info!("Getting audio volumes");
 
-
     let state = app_state.lock().await;
     let audio_config = &state.config.audio;
 
@@ -69,23 +130,69 @@ pub async fn audio_get_volumes(app_state: State<'_, AppState>) -> Result<AudioVo
 
 #[tauri::command]
 #[vacs_macros::log_err]
-pub async fn audio_set_volume(app_state: State<'_, AppState>, volume_type: VolumeType, volume: f32) -> Result<(), Error> {
-    log::info!("Setting audio volume (type: {:?}, volume: {:?})", volume_type, volume);
+pub async fn audio_set_volume(
+    app_state: State<'_, AppState>,
+    volume_type: VolumeType,
+    volume: f32,
+) -> Result<(), Error> {
+    log::info!(
+        "Setting audio volume (type: {:?}, volume: {:?})",
+        volume_type,
+        volume
+    );
+    let mut state = app_state.lock().await;
 
-    let persisted_audio_config: PersistedAudioConfig = {
-        let mut state = app_state.lock().await;
-
-        match volume_type {
-            VolumeType::Input => state.config.audio.input_device_volume = volume,
-            VolumeType::Output => state.config.audio.output_device_volume = volume,
-            VolumeType::Click => state.config.audio.click_volume = volume,
-            VolumeType::Chime => state.config.audio.chime_volume = volume,
+    match volume_type {
+        VolumeType::Input => state.config.audio.input_device_volume = volume,
+        VolumeType::Output => {
+            state
+                .audio_manager
+                .lock()
+                .await
+                .set_volume(SourceType::Opus, volume);
+            state
+                .audio_manager
+                .lock()
+                .await
+                .set_volume(SourceType::Ringback, volume);
+            state.config.audio.output_device_volume = volume;
         }
+        VolumeType::Click => {
+            state
+                .audio_manager
+                .lock()
+                .await
+                .set_volume(SourceType::Click, volume);
+            state.config.audio.click_volume = volume;
+        }
+        VolumeType::Chime => {
+            state
+                .audio_manager
+                .lock()
+                .await
+                .set_volume(SourceType::Ring, volume);
+            state.config.audio.chime_volume = volume;
+        }
+    }
 
-        state.config.audio.clone().into()
-    };
-
+    let persisted_audio_config: PersistedAudioConfig = state.config.audio.clone().into();
     persisted_audio_config.persist(AUDIO_SETTINGS_FILE_NAME)?;
+
+    Ok(())
+}
+
+#[tauri::command]
+#[vacs_macros::log_err]
+pub async fn audio_play_ui_click(app_state: State<'_, AppState>) -> Result<(), Error> {
+    log::trace!("Playing UI click");
+
+    app_state
+        .lock()
+        .await
+        .audio_manager
+        .lock()
+        .await
+        .start(SourceType::Click);
 
     Ok(())
 }

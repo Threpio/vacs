@@ -30,7 +30,7 @@ function CallQueue() {
     }
 
     return (
-        <div className="flex flex-col-reverse gap-3 pt-3 pr-[1px] overflow-y-auto" style={{scrollbarWidth: "none"}}>
+        <div className="flex flex-col-reverse gap-2.5 pt-3 pr-[1px] overflow-y-auto" style={{scrollbarWidth: "none"}}>
             {/*Call Display*/}
             {callDisplay !== undefined ? (
                 <Button color={callDisplay.type === "accepted" ? "green" : callDisplay.type === "rejected" && blink ? "green" : "gray"}

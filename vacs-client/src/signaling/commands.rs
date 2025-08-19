@@ -1,4 +1,5 @@
 use crate::app::state::AppState;
+use crate::audio::manager::SourceType;
 use crate::config::BackendEndpoint;
 use crate::error::{Error, HandleUnauthorizedExt};
 use tauri::{AppHandle, Manager, State};
@@ -53,16 +54,21 @@ pub async fn signaling_start_call(
 ) -> Result<(), Error> {
     log::debug!("Starting call with {peer_id}");
 
-    app_state
+    let mut state = app_state.lock().await;
+
+    state
+        .send_signaling_message(SignalingMessage::CallOffer {
+            peer_id,
+            sdp: "".to_string(), // TODO webrtc
+        })
+        .await?;
+
+    state
+        .audio_manager
         .lock()
         .await
-        .send_signaling_message(
-            SignalingMessage::CallOffer {
-                peer_id,
-                sdp: "".to_string(), // TODO webrtc
-            },
-        )
-        .await
+        .restart(SourceType::Ringback);
+    Ok(())
 }
 
 #[tauri::command]
@@ -74,16 +80,17 @@ pub async fn signaling_accept_call(
 ) -> Result<(), Error> {
     log::debug!("Accepting call from {peer_id}");
 
-    app_state
-        .lock()
-        .await
-        .send_signaling_message(
-            SignalingMessage::CallAnswer {
-                peer_id,
-                sdp: "".to_string(), // TODO webrtc
-            },
-        )
-        .await
+    let mut state = app_state.lock().await;
+
+    state
+        .send_signaling_message(SignalingMessage::CallAnswer {
+            peer_id,
+            sdp: "".to_string(), // TODO webrtc
+        })
+        .await?;
+
+    state.audio_manager.lock().await.stop(SourceType::Ring);
+    Ok(())
 }
 
 #[tauri::command]
@@ -94,15 +101,14 @@ pub async fn signaling_end_call(
 ) -> Result<(), Error> {
     log::debug!("Ending call with {peer_id}");
 
-    app_state
-        .lock()
-        .await
-        .send_signaling_message(
-            SignalingMessage::CallEnd {
-                peer_id,
-            },
-        )
-        .await
+    let mut state = app_state.lock().await;
+
+    state
+        .send_signaling_message(SignalingMessage::CallEnd { peer_id })
+        .await?;
+
+    state.audio_manager.lock().await.stop(SourceType::Ringback);
+    Ok(())
 }
 
 #[tauri::command]
@@ -116,10 +122,6 @@ pub async fn signaling_reject_call(
     app_state
         .lock()
         .await
-        .send_signaling_message(
-            SignalingMessage::CallReject {
-                peer_id,
-            },
-        )
+        .send_signaling_message(SignalingMessage::CallReject { peer_id })
         .await
 }

@@ -6,6 +6,7 @@ import {useAsyncDebounce} from "../hooks/debounce-hook.ts";
 import {useSignalingStore} from "../stores/signaling-store.ts";
 import DeviceSelector from "../components/DeviceSelector.tsx";
 import VolumeSettings from "../components/VolumeSettings.tsx";
+import AudioHostSelector from "../components/AudioHostSelector.tsx";
 
 function SettingsPage() {
     const connected = useSignalingStore(state => state.connected);
@@ -32,10 +33,11 @@ function SettingsPage() {
             <p className="w-full text-white bg-blue-700 font-semibold text-center">Settings</p>
             <div className="w-full grow rounded-b-sm bg-[#B5BBC6] flex flex-col">
                 <div className="w-full grow border-b-2 border-zinc-200 flex flex-row">
-                    <VolumeSettings />
+                    <VolumeSettings/>
                     <div className="h-full grow flex flex-col">
                         <p className="w-full text-center border-b-2 border-zinc-200 uppercase font-semibold">Devices</p>
                         <div className="w-full grow px-3 py-1.5 flex flex-col">
+                            <AudioHostSelector/>
                             <DeviceSelector deviceType="Input"/>
                             <DeviceSelector deviceType="Output"/>
                         </div>

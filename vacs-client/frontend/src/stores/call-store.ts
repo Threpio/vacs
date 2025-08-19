@@ -49,7 +49,7 @@ export const useCallStore = create<CallState>()((set, get) => ({
         addIncomingCall: (offer) => {
             const incomingCalls = get().incomingCalls.filter(o => o.peerId !== offer.peerId);
 
-            if (incomingCalls.length >= 1) {
+            if (incomingCalls.length >= 5) {
                 void invokeSafe("signaling_reject_call", {peerId: offer.peerId});
                 return;
             }

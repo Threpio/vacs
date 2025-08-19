@@ -47,8 +47,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             app::commands::app_frontend_ready,
             audio::commands::audio_get_devices,
-            audio::commands::audio_set_device,
+            audio::commands::audio_get_hosts,
             audio::commands::audio_get_volumes,
+            audio::commands::audio_play_ui_click,
+            audio::commands::audio_set_device,
+            audio::commands::audio_set_host,
             audio::commands::audio_set_volume,
             auth::commands::auth_check_session,
             auth::commands::auth_logout,

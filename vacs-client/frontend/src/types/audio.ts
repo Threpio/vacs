@@ -10,3 +10,8 @@ export type AudioVolumes = {
     click: number;
     chime: number;
 }
+
+export type AudioHosts = {
+    selected: string;
+    all: string[];
+}

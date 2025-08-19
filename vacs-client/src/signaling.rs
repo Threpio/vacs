@@ -1,8 +1,10 @@
 pub(crate) mod commands;
 
+use crate::app::state::AppState;
+use crate::audio::manager::SourceType;
 use crate::config::{WS_LOGIN_TIMEOUT, WS_READY_TIMEOUT};
 use crate::error::FrontendError;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::{oneshot, watch};
 use vacs_protocol::ws::{ErrorReason, SignalingMessage};
 use vacs_signaling::client::{InterruptionReason, SignalingClient};
@@ -105,7 +107,7 @@ impl Connection {
 
                     msg = broadcast_rx.recv() => {
                         match msg {
-                            Ok(msg) => Self::handle_signaling_message(msg, &app_clone),
+                            Ok(msg) => Self::handle_signaling_message(msg, &app_clone).await,
                             Err(err) => {
                                 log::warn!("Received error from signaling client broadcast receiver: {err:?}");
                                 break;
@@ -165,12 +167,18 @@ impl Connection {
         self.client.send(msg).await
     }
 
-    fn handle_signaling_message(msg: SignalingMessage, app: &AppHandle) {
+    async fn handle_signaling_message(msg: SignalingMessage, app: &AppHandle) {
         match msg {
             ref call_offer @ SignalingMessage::CallOffer { ref peer_id, .. } => {
                 log::trace!("Call offer received from {peer_id}");
                 app.emit("signaling:call-offer", call_offer).ok();
-                // TODO play chime
+                app.state::<AppState>()
+                    .lock()
+                    .await
+                    .audio_manager
+                    .lock()
+                    .await
+                    .restart(SourceType::Ring);
             }
             SignalingMessage::CallAnswer { peer_id, .. } => {
                 log::trace!("Call answer received from {peer_id}");
