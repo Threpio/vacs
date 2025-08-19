@@ -1,3 +1,4 @@
+use std::ops::DerefMut;
 use crate::config::{APP_USER_AGENT, AppConfig, BackendEndpoint};
 use crate::error::{Error, FrontendError};
 use crate::secrets::cookies::SecureCookieStore;
@@ -14,10 +15,12 @@ use tokio::sync::{Mutex, oneshot};
 use url::Url;
 use vacs_protocol::http::ws::WebSocketToken;
 use vacs_protocol::ws::SignalingMessage;
+use crate::audio::manager::AudioManager;
 
 pub struct AppStateInner {
     pub config: AppConfig,
     connection: Connection,
+    pub audio_manager: Arc<Mutex<AudioManager>>,
     pub http_client: reqwest::Client,
     cookie_store: Arc<SecureCookieStore>,
 }
@@ -32,6 +35,7 @@ impl AppStateInner {
         Ok(Self {
             config: config.clone(),
             connection: Connection::new(),
+            audio_manager: Arc::new(Mutex::new(AudioManager::new(&config.audio)?)),
             http_client: reqwest::ClientBuilder::new()
                 .user_agent(APP_USER_AGENT)
                 .cookie_provider(cookie_store.clone())

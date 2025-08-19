@@ -3,6 +3,8 @@ use config::{Config, Environment, File};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::time::Duration;
+use vacs_audio::config::AudioDeviceConfig;
+use vacs_audio::DeviceType;
 
 /// User-Agent string used for all HTTP requests.
 pub static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -119,6 +121,7 @@ impl Default for BackendEndpointsConfigs {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioConfig {
+    pub host_name: String, // Name of audio backend host, empty string means default host
     pub input_device_name: String, // Empty string means default device
     pub output_device_name: String, // Empty string means default device
     pub input_device_volume: f32,
@@ -130,12 +133,45 @@ pub struct AudioConfig {
 impl Default for AudioConfig {
     fn default() -> Self {
         Self {
+            host_name: String::new(),
             input_device_name: String::new(),
             output_device_name: String::new(),
             input_device_volume: 0.5,
             output_device_volume: 0.5,
             click_volume: 0.5,
             chime_volume: 0.5,
+        }
+    }
+}
+
+impl AudioConfig {
+    pub fn device_config(&self, device_type: DeviceType) -> AudioDeviceConfig {
+        AudioDeviceConfig {
+            host_name: if self.host_name.is_empty() {
+                None
+            } else {
+                Some(self.host_name.to_string())
+            },
+            device_name: match device_type {
+                DeviceType::Output => {
+                    if self.output_device_name.is_empty() {
+                        None
+                    } else {
+                        Some(self.output_device_name.to_string())
+                    }
+                }
+                DeviceType::Input => {
+                    if self.input_device_name.is_empty() {
+                        None
+                    } else {
+                        Some(self.input_device_name.to_string())
+                    }
+                }
+            },
+            channels: match device_type {
+                DeviceType::Output => 2,
+                DeviceType::Input => 1,
+            },
         }
     }
 }

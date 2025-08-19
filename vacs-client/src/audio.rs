@@ -1,6 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 pub(crate) mod commands;
+pub(crate) mod manager;
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioHosts {
+    selected: String,
+    all: Vec<String>,
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
