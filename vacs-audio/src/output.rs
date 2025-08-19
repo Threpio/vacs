@@ -14,7 +14,7 @@ type MixerOp = Box<dyn FnOnce(&mut Mixer) + Send>;
 const MIXER_OPS_CAPACITY: usize = 256;
 const MIXER_OPS_PER_DATA_CALLBACK: usize = 32;
 
-struct AudioOutput {
+pub struct AudioOutput {
     stream: cpal::Stream,
     mixer_ops: ringbuf::HeapProd<MixerOp>,
     next_audio_source_id: atomic::AtomicUsize,
@@ -52,7 +52,7 @@ impl AudioOutput {
         tracing::trace!("Starting playback on output stream");
         stream.play().context("Failed to play output stream")?;
 
-        tracing::debug!("Successfully started audio output on device");
+        tracing::info!("Successfully started audio output on device");
         Ok(Self {
             stream,
             mixer_ops: ops_prod,
