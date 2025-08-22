@@ -1,30 +1,26 @@
-import {useEffect, useState} from "preact/hooks";
-import {listen} from "@tauri-apps/api/event";
+import {useState} from "preact/hooks";
+import {listen, UnlistenFn} from "@tauri-apps/api/event";
 import {InputLevel} from "../../types/audio.ts";
 import {clsx} from "clsx";
 import {invokeSafe} from "../../error.ts";
 
 function InputLevelMeter() {
-    const [activated, setActivated] = useState<boolean>(false);
-    const [level, setLevel] = useState<number>(0);
+    const [unlistenFn, setUnlistenFn] = useState<Promise<UnlistenFn> | undefined>();
+    const [level, setLevel] = useState<InputLevel | undefined>();
 
-    useEffect(() => {
-        const unlisten = listen<InputLevel>("audio:input-level", (event) => {
-            setLevel(event.payload.norm);
-        })
+    const handleOnClick = async () => {
+        if (unlistenFn !== undefined) {
+            await invokeSafe("audio_stop_input_level_meter");
 
-        return () => {
-            unlisten.then(f => f());
-        };
-    }, []);
-
-    const handleOnClick = () => {
-        if (activated) {
-            void invokeSafe("audio_stop_input_level_meter");
-            setActivated(false);
-            setLevel(0);
+            (await unlistenFn)();
+            setUnlistenFn(undefined);
+            setLevel(undefined);
         } else {
-            setActivated(true);
+            const unlisten = listen<InputLevel>("audio:input-level", (event) => {
+                setLevel(event.payload);
+            })
+
+            setUnlistenFn(unlisten);
             void invokeSafe("audio_start_input_level_meter");
         }
     };
@@ -34,17 +30,17 @@ function InputLevelMeter() {
             <div
                 className={clsx(
                     "relative w-full h-full border-2 rounded cursor-pointer",
-                    activated ? "border-blue-700" : "border-gray-500"
+                    unlistenFn === undefined ? "border-gray-500" : level?.clipping ? "border-red-700" : "border-blue-700"
                 )}
                 onClick={handleOnClick}
             >
-                <div className="absolute bg-[rgba(0,0,0,0.3)] w-full"
-                     style={{height: `${100 - level * 100}%`}}></div>
+                <div className="absolute bg-[rgba(0,0,0,0.5)] w-full"
+                     style={{height: `${100 - (level?.norm ?? 0) * 100}%`}}></div>
                 <div className="bg-red-500 w-full h-[5%]"></div>
                 <div className="bg-yellow-400 w-full h-[10%]"></div>
-                <div className="bg-green-500 w-full h-[15%]"></div>
-                <div className="bg-green-600 w-full h-[55%]"></div>
-                <div className="bg-blue-600 w-full h-[15%]"></div>
+                <div className="bg-green-500 w-full h-[20%]"></div>
+                <div className="bg-green-600 w-full h-[40%]"></div>
+                <div className="bg-blue-600 w-full h-[25%]"></div>
             </div>
         </div>
     );

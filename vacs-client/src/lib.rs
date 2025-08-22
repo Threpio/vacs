@@ -52,6 +52,7 @@ pub fn run() {
             audio::commands::audio_play_ui_click,
             audio::commands::audio_set_device,
             audio::commands::audio_set_host,
+            audio::commands::audio_set_input_muted,
             audio::commands::audio_set_volume,
             audio::commands::audio_start_input_level_meter,
             audio::commands::audio_stop_input_level_meter,

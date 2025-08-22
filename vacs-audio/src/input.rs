@@ -2,7 +2,13 @@ use crate::{Device, DeviceType, EncodedAudioFrame, FRAME_SIZE, SAMPLE_RATE};
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use cpal::traits::{DeviceTrait, StreamTrait};
+use parking_lot::Mutex;
+use ringbuf::consumer::Consumer;
+use ringbuf::producer::Producer;
+use ringbuf::traits::Split;
 use serde::Serialize;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, mpsc};
 use tracing::instrument;
@@ -10,14 +16,26 @@ use tracing::instrument;
 const MAX_OPUS_FRAME_SIZE: usize = 1275; // max size of an Opus frame according to RFC 6716 3.2.1.
 const INPUT_LEVEL_CHANNEL_CAPACITY: usize = 64;
 
+type InputVolumeOp = Box<dyn Fn(&mut f32) + Send>;
+
+const INPUT_VOLUME_OPS_CAPACITY: usize = 16;
+const INPUT_VOLUME_OPS_PER_DATA_CALLBACK: usize = 16;
+
 pub struct AudioInput {
     _stream: cpal::Stream,
     pub level_rx: broadcast::Receiver<InputLevel>,
+    volume_ops: Mutex<ringbuf::HeapProd<InputVolumeOp>>,
+    muted: Arc<AtomicBool>,
 }
 
 impl AudioInput {
     #[instrument(level = "debug", skip(device, tx), err, fields(device = %device))]
-    pub fn start(device: &Device, tx: mpsc::Sender<EncodedAudioFrame>) -> Result<Self> {
+    pub fn start(
+        device: &Device,
+        tx: Option<mpsc::Sender<EncodedAudioFrame>>,
+        mut volume: f32,
+        amp: f32,
+    ) -> Result<Self> {
         tracing::debug!("Starting input capture on device");
 
         let (level_tx, level_rx) = broadcast::channel(INPUT_LEVEL_CHANNEL_CAPACITY);
@@ -34,17 +52,41 @@ impl AudioInput {
         encoder.set_inband_fec(true)?;
         encoder.set_vbr(false)?;
 
+        let muted = Arc::new(AtomicBool::new(false));
+        let muted_clone = muted.clone();
+
+        let (ops_prod, mut ops_cons) =
+            ringbuf::HeapRb::<InputVolumeOp>::new(INPUT_VOLUME_OPS_CAPACITY).split();
+
         let stream = device
             .device
             .build_input_stream(
                 &device.stream_config.config(),
                 move |data: &[f32], _| {
-                    for &s in data {
+                    for _ in 0..INPUT_VOLUME_OPS_PER_DATA_CALLBACK {
+                        if let Some(op) = ops_cons.try_pop() {
+                            op(&mut volume);
+                        } else {
+                            break;
+                        }
+                    }
+
+                    for &in_s in data {
+                        let s = if muted.load(Ordering::SeqCst) {
+                            0.0
+                        } else {
+                            in_s * amp * volume
+                        };
+
                         if let Some(level) = level_meter.push_sample(s)
                             && let Err(err) = level_tx.send(level)
                         {
                             tracing::warn!(?err, "Failed to send input level");
                         }
+
+                        let Some(tx) = &tx else {
+                            continue; // no actual audio output attached, only using level meter
+                        };
 
                         frame_buf[frame_pos] = s;
                         frame_pos += 1;
@@ -79,14 +121,39 @@ impl AudioInput {
         Ok(Self {
             _stream: stream,
             level_rx,
+            volume_ops: Mutex::new(ops_prod),
+            muted: muted_clone,
         })
     }
 
     #[instrument(level = "debug", err)]
-    pub fn start_default(tx: mpsc::Sender<EncodedAudioFrame>) -> Result<Self> {
+    pub fn start_default(
+        tx: mpsc::Sender<EncodedAudioFrame>,
+        volume: f32,
+        amp: f32,
+    ) -> Result<Self> {
         tracing::debug!("Starting audio input on default device");
         let default_device = Device::find_default(DeviceType::Input)?;
-        Self::start(&default_device, tx)
+        Self::start(&default_device, Some(tx), volume, amp)
+    }
+
+    #[instrument(level = "trace", skip(self))]
+    pub fn set_volume(&mut self, volume: f32) {
+        tracing::trace!("Setting volume for audio input");
+        if self
+            .volume_ops
+            .lock()
+            .try_push(Box::new(move |vol: &mut f32| *vol = volume))
+            .is_err()
+        {
+            tracing::warn!("Failed to set volume for audio input");
+        }
+    }
+
+    #[instrument(level = "trace", skip(self))]
+    pub fn set_muted(&mut self, muted: bool) {
+        tracing::trace!("Setting muted flag for audio input");
+        self.muted.store(muted, Ordering::SeqCst);
     }
 }
 
@@ -116,7 +183,6 @@ const INPUT_LEVEL_METER_WINDOW_MS: f32 = 15.0;
 
 impl Default for InputLevelMeter {
     fn default() -> Self {
-        let window_ms = 15.0;
         let window_samples =
             ((SAMPLE_RATE as f32) * (INPUT_LEVEL_METER_WINDOW_MS / 1000.0)) as usize;
 

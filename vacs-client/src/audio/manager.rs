@@ -85,24 +85,27 @@ impl AudioManager {
         Ok(())
     }
 
-    // TODO remove linter disable
-    #[allow(unused)]
     pub fn attach_input_device(
         &mut self,
         audio_config: &AudioConfig,
-        tx: mpsc::Sender<EncodedAudioFrame>,
+        tx: Option<mpsc::Sender<EncodedAudioFrame>>,
     ) -> Result<()> {
         let input_device = Device::new(
             &audio_config.device_config(DeviceType::Input),
             DeviceType::Input,
         )?;
-        self.input =
-            Some(AudioInput::start(&input_device, tx).context("Failed to start audio input")?);
+        self.input = Some(
+            AudioInput::start(
+                &input_device,
+                tx,
+                audio_config.input_device_volume,
+                audio_config.input_device_volume_amp,
+            )
+            .context("Failed to start audio input")?,
+        );
         Ok(())
     }
 
-    // TODO remove linter disable
-    #[allow(unused)]
     pub fn detach_input_device(&mut self) {
         self.input = None;
     }
@@ -124,15 +127,15 @@ impl AudioManager {
         self.output.stop_audio_source(self.source_ids[&source_type])
     }
 
-    pub fn set_volume(&mut self, source_type: SourceType, volume: f32) {
+    pub fn set_output_volume(&mut self, source_type: SourceType, volume: f32) {
         if !self.source_ids.contains_key(&source_type) {
             log::trace!(
-                "Tried to set volume {volume} for missing audio source {source_type:?}, skipping"
+                "Tried to set output volume {volume} for missing audio source {source_type:?}, skipping"
             );
             return;
         }
 
-        log::trace!("Setting volume {volume} for audio source {source_type:?}");
+        log::trace!("Setting output volume {volume} for audio source {source_type:?}");
         self.output
             .set_volume(self.source_ids[&source_type], volume);
 
@@ -145,6 +148,18 @@ impl AudioManager {
         }
     }
 
+    pub fn set_input_volume(&mut self, volume: f32) {
+        if let Some(input) = &mut self.input {
+            input.set_volume(volume);
+        }
+    }
+
+    pub fn set_input_muted(&mut self, muted: bool) {
+        if let Some(input) = &mut self.input {
+            input.set_muted(muted);
+        }
+    }
+
     // TODO remove linter disable
     #[allow(unused)]
     pub fn attach_call(&mut self, webrtc_rx: mpsc::Receiver<EncodedAudioFrame>) {
@@ -153,6 +168,7 @@ impl AudioManager {
             return;
         }
 
+        // TODO volume & amp + channels
         self.source_ids.insert(
             SourceType::Opus,
             self.output

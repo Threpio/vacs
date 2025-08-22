@@ -1,10 +1,9 @@
 use crate::app::state::AppState;
 use crate::audio::manager::SourceType;
 use crate::audio::{AudioDevices, AudioHosts, AudioVolumes, VolumeType};
-use crate::config::{AUDIO_SETTINGS_FILE_NAME, Persistable, PersistedAudioConfig};
+use crate::config::{Persistable, PersistedAudioConfig, AUDIO_SETTINGS_FILE_NAME};
 use crate::error::Error;
 use tauri::{AppHandle, Emitter, State};
-use tokio::sync::mpsc;
 use vacs_audio::{Device, DeviceType};
 
 #[tauri::command]
@@ -161,21 +160,32 @@ pub async fn audio_set_volume(
     let mut state = app_state.lock().await;
 
     match volume_type {
-        VolumeType::Input => state.config.audio.input_device_volume = volume,
+        VolumeType::Input => {
+            state.audio_manager.set_input_volume(volume);
+            state.config.audio.input_device_volume = volume;
+        }
         VolumeType::Output => {
-            state.audio_manager.set_volume(SourceType::Opus, volume);
-            state.audio_manager.set_volume(SourceType::Ringback, volume);
             state
                 .audio_manager
-                .set_volume(SourceType::RingbackOneshot, volume);
+                .set_output_volume(SourceType::Opus, volume);
+            state
+                .audio_manager
+                .set_output_volume(SourceType::Ringback, volume);
+            state
+                .audio_manager
+                .set_output_volume(SourceType::RingbackOneshot, volume);
             state.config.audio.output_device_volume = volume;
         }
         VolumeType::Click => {
-            state.audio_manager.set_volume(SourceType::Click, volume);
+            state
+                .audio_manager
+                .set_output_volume(SourceType::Click, volume);
             state.config.audio.click_volume = volume;
         }
         VolumeType::Chime => {
-            state.audio_manager.set_volume(SourceType::Ring, volume);
+            state
+                .audio_manager
+                .set_output_volume(SourceType::Ring, volume);
             state.config.audio.chime_volume = volume;
         }
     }
@@ -213,7 +223,7 @@ pub async fn audio_start_input_level_meter(
 
     state
         .audio_manager
-        .attach_input_device(audio_config, mpsc::channel(1).0)?;
+        .attach_input_device(audio_config, None)?;
 
     let mut input_rx = state.audio_manager.input_level_rx().resubscribe();
 
@@ -235,5 +245,16 @@ pub async fn audio_stop_input_level_meter(app_state: State<'_, AppState>) -> Res
 
     app_state.lock().await.audio_manager.detach_input_device();
 
+    Ok(())
+}
+
+#[tauri::command]
+#[vacs_macros::log_err]
+pub async fn audio_set_input_muted(
+    app_state: State<'_, AppState>,
+    muted: bool,
+) -> Result<(), Error> {
+    log::info!("Setting audio input muted (muted: {muted})");
+    app_state.lock().await.audio_manager.set_input_muted(muted);
     Ok(())
 }

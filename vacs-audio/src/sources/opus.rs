@@ -5,13 +5,14 @@ use ringbuf::traits::{Consumer, Producer, Split};
 use ringbuf::{HeapCons, HeapProd, HeapRb};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tracing::{Instrument, instrument};
+use tracing::{instrument, Instrument};
 
 pub struct OpusSource {
     cons: HeapCons<f32>,
     decoder_handle: JoinHandle<()>,
     output_channels: usize, // >= 1
-    volume: f32, // 0.0 - 1.0
+    volume: f32,            // 0.0 - 1.0
+    amp: f32,               // >= 0.1
 }
 
 impl OpusSource {
@@ -22,6 +23,7 @@ impl OpusSource {
         rb_capacity_samples: usize,
         output_channels: usize,
         volume: f32,
+        amp: f32,
     ) -> Result<Self> {
         tracing::trace!("Creating Opus source");
         let rb: HeapRb<f32> = HeapRb::new(rb_capacity_samples);
@@ -71,6 +73,7 @@ impl OpusSource {
             decoder_handle,
             output_channels: output_channels.max(1),
             volume: volume.clamp(0.0, 1.0),
+            amp: amp.min(0.1),
         })
     }
 
@@ -93,7 +96,7 @@ impl From<mpsc::Receiver<EncodedAudioFrame>> for OpusSource {
         // We buffer 10 frames, which equals a total buffer of 200 ms at 48_000 Hz and 20 ms intervals
         // Default to mono output as it's the safest choice for the most devices. Interleaving to
         // multi-channel output devices can be enabled by calling `with_output_channels`.
-        Self::from_mpsc(rx, SAMPLE_RATE, FRAME_SIZE * 10, 1, 0.5).unwrap()
+        Self::from_mpsc(rx, SAMPLE_RATE, FRAME_SIZE * 10, 1, 0.5, 2.0).unwrap()
     }
 }
 
@@ -102,7 +105,7 @@ impl AudioSource for OpusSource {
         // Only a single output channel --> no interleaving required, just copy samples
         if self.output_channels == 1 {
             for (out_s, s) in output.iter_mut().zip(self.cons.pop_iter()) {
-                *out_s += s * self.volume;
+                *out_s += s * self.amp * self.volume;
             }
 
             // Do not backfill tail samples, as output buffer is already initialized with EQUILIBRIUM
@@ -117,7 +120,7 @@ impl AudioSource for OpusSource {
             .zip(self.cons.pop_iter())
         {
             for x in frame {
-                *x += s * self.volume;
+                *x += s * self.amp * self.volume;
             }
         }
     }

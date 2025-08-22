@@ -125,7 +125,9 @@ pub struct AudioConfig {
     pub input_device_name: String, // Empty string means default device
     pub output_device_name: String, // Empty string means default device
     pub input_device_volume: f32,
+    pub input_device_volume_amp: f32,
     pub output_device_volume: f32,
+    pub output_device_volume_amp: f32,
     pub click_volume: f32,
     pub chime_volume: f32,
 }
@@ -137,7 +139,9 @@ impl Default for AudioConfig {
             input_device_name: String::new(),
             output_device_name: String::new(),
             input_device_volume: 0.5,
+            input_device_volume_amp: 3.0,
             output_device_volume: 0.5,
+            output_device_volume_amp: 2.0,
             click_volume: 0.5,
             chime_volume: 0.5,
         }
