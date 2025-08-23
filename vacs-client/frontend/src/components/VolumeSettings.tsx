@@ -32,7 +32,7 @@ function VolumeSettings() {
         <>
             <div className="h-full w-64 border-r-2 border-zinc-200 flex flex-col">
                 <p className="w-full text-center border-b-2 border-zinc-200 uppercase font-semibold">Call</p>
-                <div className="w-full grow px-3 py-1.5 flex flex-row">
+                <div className="w-full grow px-3 py-1.5 flex flex-row gap-3.5">
                     <div className="w-full flex flex-col items-center">
                         <img src={headphones} className="pt-1 h-12 w-12" alt=""/>
                         <p className="font-bold text-center pt-3 pb-1">Output</p>
@@ -40,14 +40,16 @@ function VolumeSettings() {
                                       setPosition={(position) => setVolumes((prev) => ({...prev, output: position}))}
                                       savePosition={(position) => handleVolumeSave("output", position)}/>
                     </div>
-                    <div className="w-full flex flex-col items-center">
-                        <img src={mic} className="pt-1 h-12 w-12" alt=""/>
-                        <p className="font-bold text-center pt-3 pb-1">Input</p>
-                        <VolumeSlider position={volumes.input}
-                                      setPosition={(position) => setVolumes((prev) => ({...prev, input: position}))}
-                                      savePosition={(position) => handleVolumeSave("input", position)}/>
+                    <div className="w-full flex flex-row items-center">
+                        <div className="w-full h-full flex flex-col items-center">
+                            <img src={mic} className="pt-1 h-12 w-12" alt=""/>
+                            <p className="font-bold text-center pt-3 pb-1">Input</p>
+                            <VolumeSlider position={volumes.input}
+                                          setPosition={(position) => setVolumes((prev) => ({...prev, input: position}))}
+                                          savePosition={(position) => handleVolumeSave("input", position)}/>
+                        </div>
+                        <InputLevelMeter/>
                     </div>
-                    <InputLevelMeter/>
                 </div>
             </div>
             <div className="h-full w-60 border-r-2 border-zinc-200 flex flex-col">
