@@ -38,8 +38,8 @@ function SettingsPage() {
                         <p className="w-full text-center border-b-2 border-zinc-200 uppercase font-semibold">Devices</p>
                         <div className="w-full grow px-3 py-1.5 flex flex-col">
                             <AudioHostSelector/>
-                            <DeviceSelector deviceType="Input"/>
                             <DeviceSelector deviceType="Output"/>
+                            <DeviceSelector deviceType="Input"/>
                         </div>
                     </div>
                 </div>
