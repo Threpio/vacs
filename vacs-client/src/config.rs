@@ -2,7 +2,7 @@ use anyhow::Context;
 use config::{Config, Environment, File};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 use std::time::Duration;
 use vacs_audio::DeviceType;
 use vacs_audio::config::AudioDeviceConfig;
@@ -23,7 +23,7 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    pub fn parse(config_dir: PathBuf) -> anyhow::Result<AppConfig> {
+    pub fn parse(config_dir: &Path) -> anyhow::Result<AppConfig> {
         Config::builder()
             .add_source(Config::try_from(&AppConfig::default())?)
             .add_source(
@@ -192,14 +192,14 @@ impl From<AudioConfig> for PersistedAudioConfig {
 }
 
 pub trait Persistable {
-    fn persist(&self, config_dir: PathBuf, file_name: &str) -> anyhow::Result<()>;
+    fn persist(&self, config_dir: &Path, file_name: &str) -> anyhow::Result<()>;
 }
 
 impl<T: Serialize> Persistable for T {
-    fn persist(&self, config_dir: PathBuf, file_name: &str) -> anyhow::Result<()> {
+    fn persist(&self, config_dir: &Path, file_name: &str) -> anyhow::Result<()> {
         let serialized = toml::to_string_pretty(self).context("Failed to serialize config")?;
 
-        fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
+        fs::create_dir_all(config_dir).context("Failed to create config directory")?;
         fs::write(config_dir.join(file_name), serialized)
             .context("Failed to write config to file")?;
 

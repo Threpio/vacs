@@ -86,7 +86,6 @@ impl AudioManager {
         Ok(())
     }
 
-    #[allow(unused)]
     pub fn attach_input_device(
         &mut self,
         audio_config: &AudioConfig,
@@ -103,7 +102,7 @@ impl AudioManager {
                 audio_config.input_device_volume,
                 audio_config.input_device_volume_amp,
             )
-            .context("Failed to start audio input")?,
+                .context("Failed to start audio input")?,
         );
         Ok(())
     }
@@ -124,7 +123,7 @@ impl AudioManager {
                 audio_config.input_device_volume,
                 audio_config.input_device_volume_amp,
             )
-            .context("Failed to start audio input level meter")?,
+                .context("Failed to start audio input level meter")?,
         );
         Ok(())
     }

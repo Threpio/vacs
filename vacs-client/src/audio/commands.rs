@@ -52,7 +52,7 @@ pub async fn audio_set_host(
         .path()
         .app_config_dir()
         .expect("Cannot get config directory");
-    persisted_audio_config.persist(config_dir, AUDIO_SETTINGS_FILE_NAME)?;
+    persisted_audio_config.persist(&config_dir, AUDIO_SETTINGS_FILE_NAME)?;
 
     Ok(())
 }
@@ -134,7 +134,7 @@ pub async fn audio_set_device(
         .path()
         .app_config_dir()
         .expect("Cannot get config directory");
-    persisted_audio_config.persist(config_dir, AUDIO_SETTINGS_FILE_NAME)?;
+    persisted_audio_config.persist(&config_dir, AUDIO_SETTINGS_FILE_NAME)?;
 
     Ok(())
 }
@@ -207,7 +207,7 @@ pub async fn audio_set_volume(
         .path()
         .app_config_dir()
         .expect("Cannot get config directory");
-    persisted_audio_config.persist(config_dir, AUDIO_SETTINGS_FILE_NAME)?;
+    persisted_audio_config.persist(&config_dir, AUDIO_SETTINGS_FILE_NAME)?;
 
     Ok(())
 }
