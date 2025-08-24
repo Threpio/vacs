@@ -139,12 +139,12 @@ impl AppStateWebrtcExt for AppStateInner {
                 call.peer.accept_answer(answer_sdp).await?;
                 Ok(())
             } else {
-                Err(Error::WebrtcError(
+                Err(Error::Webrtc(
                     "Tried to accept answer, but peer_id does not match".to_string(),
                 ))
             }
         } else {
-            Err(Error::WebrtcError(
+            Err(Error::Webrtc(
                 "Tried to accept answer, but there is no active call".to_string(),
             ))
         }
