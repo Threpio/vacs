@@ -19,12 +19,12 @@ function CallQueue() {
         }
     };
 
-    const handleAnswerKeyClick = async (peerId: string, sdp: string) => {
+    const handleAnswerKeyClick = async (peerId: string) => {
         // Can't call someone if you are currently in an active or outgoing/rejected call
         if (callDisplay !== undefined) return;
 
         try {
-            await invokeStrict("signaling_accept_call", {peerId: peerId, sdp: sdp});
+            await invokeStrict("signaling_accept_call", {peerId: peerId});
             acceptCall(peerId);
         } catch {}
     }
@@ -43,9 +43,9 @@ function CallQueue() {
             )}
 
             {/*Answer Keys*/}
-            {incomingCalls.map(call => (
+            {incomingCalls.map(peerId => (
                 <Button color={blink ? "green" : "gray"} className={"min-h-16 text-sm"}
-                        onClick={() => handleAnswerKeyClick(call.peerId, call.sdp)}>{call.peerId}</Button>
+                        onClick={() => handleAnswerKeyClick(peerId)}>{peerId}</Button>
             ))}
             {Array.from(Array(Math.max(5 - incomingCalls.length, 0))).map(() => <div
                 className="w-full border rounded-md min-h-16"></div>)}
