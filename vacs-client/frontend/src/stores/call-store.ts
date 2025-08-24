@@ -54,7 +54,7 @@ export const useCallStore = create<CallState>()((set, get) => ({
             }
 
             if (get().blinkTimeoutId === undefined) {
-                startBlink(set, get);
+                startBlink(set);
             }
 
             set({incomingCalls: [...incomingCalls, peerId]});
@@ -84,7 +84,7 @@ export const useCallStore = create<CallState>()((set, get) => ({
             set({callDisplay: {type: "rejected", peerId: peerId}});
 
             if (get().blinkTimeoutId === undefined) {
-                startBlink(set, get);
+                startBlink(set);
             }
         },
         dismissRejectedPeer: () => {
@@ -102,20 +102,17 @@ const shouldStopBlinking = (incomingCalls: string[], callDisplay?: CallDisplay) 
     return incomingCalls.length === 0 && (callDisplay === undefined || callDisplay.type !== "rejected");
 }
 
-const startBlink = (set: StateSetter, get: StateGetter) => {
-    const toggleBlink = () => {
+const startBlink = (set: StateSetter) => {
+    const toggleBlink = (blink: boolean) => {
         const timeoutId = setTimeout(() => {
-            set({blink: !get().blink});
-            toggleBlink();
+            toggleBlink(!blink);
         }, 500);
-        set({blinkTimeoutId: timeoutId});
+        set({blinkTimeoutId: timeoutId, blink: blink});
     }
-    toggleBlink();
+    toggleBlink(true);
 }
 
 type StateSetter = {
     (partial: (CallState | Partial<CallState> | ((state: CallState) => (CallState | Partial<CallState>))), replace?: false): void
     (state: (CallState | ((state: CallState) => CallState)), replace: true): void
 };
-
-type StateGetter = () => CallState;
