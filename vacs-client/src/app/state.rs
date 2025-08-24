@@ -1,4 +1,5 @@
-use crate::audio::manager::AudioManager;
+use std::collections::HashMap;
+use crate::audio::manager::{AudioManager, SourceType};
 use crate::config::{AppConfig, BackendEndpoint, APP_USER_AGENT};
 use crate::error::{Error, FrontendError};
 use crate::secrets::cookies::SecureCookieStore;
@@ -13,17 +14,27 @@ use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::{oneshot, Mutex};
+use tokio::task::JoinHandle;
 use url::Url;
 use vacs_protocol::http::ws::WebSocketToken;
 use vacs_protocol::ws::SignalingMessage;
+use vacs_webrtc::Peer;
+use crate::webrtc::WebrtcManager;
+
+struct Call {
+    peer_id: String,
+    peer: Peer,
+    events_task: JoinHandle<()>,
+}
 
 pub struct AppStateInner {
     pub config: AppConfig,
     connection: Connection,
-    pub audio_manager: AudioManager,
+    audio_manager: AudioManager,
     pub http_client: reqwest::Client,
     cookie_store: Arc<SecureCookieStore>,
-    active_call_peer_id: Option<String>,
+    active_call: Option<Call>,
+    held_calls: HashMap<String, Call>,
 }
 
 pub type AppState = Mutex<AppStateInner>;
@@ -47,7 +58,8 @@ impl AppStateInner {
                 .build()
                 .context("Failed to build HTTP client")?,
             cookie_store,
-            active_call_peer_id: None,
+            active_call: None,
+            held_calls: HashMap::new(),
         })
     }
 
@@ -64,6 +76,7 @@ impl AppStateInner {
             .clear()
             .context("Failed to clear cookie store")
     }
+
 
     pub async fn connect_signaling(&mut self, app: &AppHandle) -> Result<(), Error> {
         log::info!("Connecting to signaling server");
@@ -152,14 +165,12 @@ impl AppStateInner {
         log::debug!("Successfully handled closed signaling server connection");
     }
 
-    pub fn set_active_call_peer_id(&mut self, peer_id: Option<String>) {
-        self.active_call_peer_id = peer_id;
+    /*  MANAGER */
+    pub fn audio_manager(&mut self) -> &mut AudioManager {
+        &mut self.audio_manager
     }
 
-    pub fn active_call_peer_id(&self) -> Option<&String> {
-        self.active_call_peer_id.as_ref()
-    }
-
+    /* HTTP CLIENT */
     fn parse_http_request_url(
         &self,
         endpoint: BackendEndpoint,

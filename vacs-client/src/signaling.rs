@@ -175,7 +175,7 @@ impl Connection {
                 app.state::<AppState>()
                     .lock()
                     .await
-                    .audio_manager
+                    .audio_manager()
                     .restart(SourceType::Ring);
             }
             SignalingMessage::CallAnswer { peer_id, .. } => {
@@ -191,7 +191,7 @@ impl Connection {
                 // let audio_config = state.config.audio.clone();
                 //
                 // if let Err(err) = state
-                //     .audio_manager
+                //     .audio_manager()
                 //     .attach_input_device(&audio_config, webrtc_tx)
                 // {
                 //     log::warn!("Failed to attach input device: {err:?}");
@@ -215,10 +215,10 @@ impl Connection {
                 // }
                 // log::info!("Attached input device");
 
-                state.set_active_call_peer_id(Some(peer_id.clone()));
+                //state.set_active_call_peer_id(Some(peer_id.clone()));
 
                 app.emit("signaling:call-answer", peer_id).ok();
-                state.audio_manager.stop(SourceType::Ringback);
+                state.audio_manager().stop(SourceType::Ringback);
             }
             SignalingMessage::CallReject { peer_id } => {
                 log::trace!("Call reject received from {peer_id}");
@@ -226,7 +226,7 @@ impl Connection {
                 app.state::<AppState>()
                     .lock()
                     .await
-                    .audio_manager
+                    .audio_manager()
                     .stop(SourceType::Ringback);
             }
             SignalingMessage::CallEnd { peer_id } => {
@@ -235,25 +235,35 @@ impl Connection {
                 let state = app.state::<AppState>();
                 let mut state = state.lock().await;
 
-                if state.active_call_peer_id() != Some(&peer_id) {
+                if state.webrtc_manager().is_active_call(&peer_id) {
+                    state.audio_manager().detach_call_output();
+                    state.audio_manager().detach_input_device();
+                }
+
+                let found = state.webrtc_manager().end_call(&peer_id).await;
+
+                if !found {
                     log::warn!("Received call end message for peer that is not active");
                     return;
                 }
 
-                state.audio_manager.detach_input_device();
-                log::info!("Detached input device");
-
-                // TODO end call in webrtc
                 app.emit("signaling:call-end", peer_id).ok();
                 app.state::<AppState>()
                     .lock()
                     .await
-                    .audio_manager
+                    .audio_manager()
                     .stop(SourceType::Ring);
             }
-            SignalingMessage::CallIceCandidate { peer_id, .. } => {
+            SignalingMessage::CallIceCandidate { peer_id, candidate } => {
                 log::trace!("ICE candidate received from {peer_id}");
-                // TODO pass to webrtc
+
+                let state = app.state::<AppState>();
+                let mut state = state.lock().await;
+
+                state
+                    .webrtc_manager()
+                    .add_remote_ice_candidate(&peer_id, candidate)
+                    .await;
             }
             SignalingMessage::PeerNotFound { peer_id } => {
                 log::trace!("Received peer not found: {peer_id}");
@@ -261,13 +271,13 @@ impl Connection {
                 let state = app.state::<AppState>();
                 let mut state = state.lock().await;
 
-                if state.active_call_peer_id() != Some(&peer_id) {
+                if !state.webrtc_manager().is_active_call(&peer_id) {
                     log::warn!("Received call end message for peer that is not active");
                     return;
                 }
 
                 // TODO end call in webrtc/audio
-                state.set_active_call_peer_id(None);
+                //state.webrtc_manager().set_active_call_peer_id(None);
                 drop(state);
 
                 app.emit("signaling:peer-not-found", peer_id).ok();

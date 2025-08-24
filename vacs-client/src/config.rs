@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use vacs_audio::DeviceType;
 use vacs_audio::config::AudioDeviceConfig;
+use vacs_webrtc::config::WebrtcConfig;
 
 /// User-Agent string used for all HTTP requests.
 pub static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -17,6 +18,7 @@ pub const AUDIO_SETTINGS_FILE_NAME: &str = "audio.toml";
 pub struct AppConfig {
     pub backend: BackendConfig,
     pub audio: AudioConfig,
+    pub webrtc: WebrtcConfig,
 }
 
 impl AppConfig {

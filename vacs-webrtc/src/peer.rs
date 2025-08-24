@@ -39,7 +39,7 @@ pub struct Peer {
 
 impl Peer {
     #[instrument(level = "debug", err)]
-    pub async fn new(config: WebrtcConfig) -> Result<Self> {
+    pub async fn new(config: WebrtcConfig) -> Result<(Self, broadcast::Receiver<PeerEvent>)> {
         let mut media_engine = MediaEngine::default();
         media_engine
             .register_default_codecs()
@@ -83,7 +83,7 @@ impl Peer {
             .await
             .context("Failed to add track to peer connection")?;
 
-        let (events_tx, _) = broadcast::channel(PEER_EVENTS_CAPACITY);
+        let (events_tx, events_rx) = broadcast::channel(PEER_EVENTS_CAPACITY);
 
         {
             let events_tx = events_tx.clone();
@@ -123,13 +123,16 @@ impl Peer {
             }))
         }
 
-        Ok(Self {
-            peer_connection,
-            track,
-            sender: None,
-            receiver: None,
-            events_tx,
-        })
+        Ok((
+            Self {
+                peer_connection,
+                track,
+                sender: None,
+                receiver: None,
+                events_tx,
+            },
+            events_rx,
+        ))
     }
 
     #[instrument(level = "debug", skip_all, err)]

@@ -5,6 +5,7 @@ mod config;
 mod error;
 mod secrets;
 mod signaling;
+mod webrtc;
 
 use crate::app::state::{AppState, AppStateInner};
 use crate::error::FrontendError;

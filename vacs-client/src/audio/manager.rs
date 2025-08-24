@@ -136,6 +136,7 @@ impl AudioManager {
 
     pub fn detach_input_device(&mut self) {
         self.input = None;
+        log::info!("Detached input device");
     }
 
     pub fn start(&mut self, source_type: SourceType) {
@@ -188,9 +189,7 @@ impl AudioManager {
         }
     }
 
-    // TODO remove linter disable
-    #[allow(unused)]
-    pub fn attach_call(
+    pub fn attach_call_output(
         &mut self,
         webrtc_rx: mpsc::Receiver<EncodedAudioFrame>,
         volume: f32,
@@ -217,15 +216,13 @@ impl AudioManager {
         Ok(())
     }
 
-    // TODO remove linter disable
-    #[allow(unused)]
-    pub fn detach_call(&mut self) {
+    pub fn detach_call_output(&mut self) {
         self.output
             .remove_audio_source(self.source_ids[&SourceType::Opus]);
         if self.source_ids.remove(&SourceType::Opus).is_some() {
             log::info!("Detached call");
         } else {
-            log::warn!("Tried to detach call but no call was attached");
+            log::info!("Tried to detach call but no call was attached");
         }
     }
 

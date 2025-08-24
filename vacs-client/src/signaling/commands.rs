@@ -49,6 +49,7 @@ pub async fn signaling_terminate(
 #[tauri::command]
 #[vacs_macros::log_err]
 pub async fn signaling_start_call(
+    app: AppHandle,
     app_state: State<'_, AppState>,
     peer_id: String,
 ) -> Result<(), Error> {
@@ -56,14 +57,13 @@ pub async fn signaling_start_call(
 
     let mut state = app_state.lock().await;
 
-    state
-        .send_signaling_message(SignalingMessage::CallOffer {
-            peer_id,
-            sdp: "".to_string(), // TODO webrtc
-        })
+    let sdp = state.webrtc_manager().start_call(app, peer_id.clone()).await?;
+
+    state.send_signaling_message(SignalingMessage::CallOffer { peer_id, sdp })
         .await?;
 
-    state.audio_manager.restart(SourceType::Ringback);
+    state.audio_manager().restart(SourceType::Ringback);
+
     Ok(())
 }
 
@@ -85,7 +85,7 @@ pub async fn signaling_accept_call(
         })
         .await?;
 
-    state.audio_manager.stop(SourceType::Ring);
+    state.audio_manager().stop(SourceType::Ring);
     Ok(())
 }
 
@@ -103,7 +103,7 @@ pub async fn signaling_end_call(
         .send_signaling_message(SignalingMessage::CallEnd { peer_id })
         .await?;
 
-    state.audio_manager.stop(SourceType::Ringback);
+    state.audio_manager().stop(SourceType::Ringback);
     Ok(())
 }
 

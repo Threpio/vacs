@@ -33,8 +33,7 @@ pub async fn audio_set_host(
 ) -> Result<(), Error> {
     let mut state = app_state.lock().await;
 
-    // TODO: Replace with webrtc peer
-    if state.active_call_peer_id().is_some() {
+    if state.webrtc_manager().active_call_peer_id().is_some() {
         return Err(Error::AudioDevice(
             "Cannot set audio device while call is active".to_string(),
         ));
@@ -104,8 +103,7 @@ pub async fn audio_set_device(
 ) -> Result<(), Error> {
     let mut state = app_state.lock().await;
 
-    // TODO: Replace with webrtc peer
-    if state.active_call_peer_id().is_some() {
+    if state.webrtc_manager().active_call_peer_id().is_some() {
         return Err(Error::AudioDevice(
             "Cannot set audio device while call is active".to_string(),
         ));
@@ -123,7 +121,7 @@ pub async fn audio_set_device(
             DeviceType::Output => {
                 state.config.audio.output_device_name = device_name;
                 let audio_config = state.config.audio.clone();
-                state.audio_manager.switch_output_device(&audio_config)?;
+                state.audio_manager().switch_output_device(&audio_config)?;
             }
         }
 
@@ -172,30 +170,30 @@ pub async fn audio_set_volume(
 
     match volume_type {
         VolumeType::Input => {
-            state.audio_manager.set_input_volume(volume);
+            state.audio_manager().set_input_volume(volume);
             state.config.audio.input_device_volume = volume;
         }
         VolumeType::Output => {
             state
-                .audio_manager
+                .audio_manager()
                 .set_output_volume(SourceType::Opus, volume);
             state
-                .audio_manager
+                .audio_manager()
                 .set_output_volume(SourceType::Ringback, volume);
             state
-                .audio_manager
+                .audio_manager()
                 .set_output_volume(SourceType::RingbackOneshot, volume);
             state.config.audio.output_device_volume = volume;
         }
         VolumeType::Click => {
             state
-                .audio_manager
+                .audio_manager()
                 .set_output_volume(SourceType::Click, volume);
             state.config.audio.click_volume = volume;
         }
         VolumeType::Chime => {
             state
-                .audio_manager
+                .audio_manager()
                 .set_output_volume(SourceType::Ring, volume);
             state.config.audio.chime_volume = volume;
         }
@@ -220,7 +218,7 @@ pub async fn audio_play_ui_click(app_state: State<'_, AppState>) -> Result<(), E
     app_state
         .lock()
         .await
-        .audio_manager
+        .audio_manager()
         .start(SourceType::Click);
 
     Ok(())
@@ -237,13 +235,13 @@ pub async fn audio_start_input_level_meter(
     let mut state = app_state.lock().await;
     let audio_config = &state.config.audio.clone();
 
-    if state.audio_manager.is_input_device_attached() {
+    if state.audio_manager().is_input_device_attached() {
         return Err(Error::AudioDevice(
             "Cannot start input level meter while call is active".to_string(),
         ));
     }
 
-    state.audio_manager.attach_input_level_meter(
+    state.audio_manager().attach_input_level_meter(
         audio_config,
         Box::new(move |level| {
             app.emit("audio:input-level", level).ok();
@@ -258,7 +256,7 @@ pub async fn audio_start_input_level_meter(
 pub async fn audio_stop_input_level_meter(app_state: State<'_, AppState>) -> Result<(), Error> {
     log::trace!("Stopping input level meter");
 
-    app_state.lock().await.audio_manager.detach_input_device();
+    app_state.lock().await.audio_manager().detach_input_device();
 
     Ok(())
 }
@@ -270,6 +268,6 @@ pub async fn audio_set_input_muted(
     muted: bool,
 ) -> Result<(), Error> {
     log::info!("Setting audio input muted (muted: {muted})");
-    app_state.lock().await.audio_manager.set_input_muted(muted);
+    app_state.lock().await.audio_manager().set_input_muted(muted);
     Ok(())
 }
