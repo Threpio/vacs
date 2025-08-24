@@ -37,7 +37,7 @@ pub async fn audio_set_host(
 
     if state.active_call_peer_id().is_some() {
         return Err(Error::AudioDevice(
-            "Cannot set audio device while call is active".to_string(),
+            "Cannot set audio host while call is active".to_string(),
         ));
     }
 
@@ -121,9 +121,12 @@ pub async fn audio_set_device(
         match device_type {
             DeviceType::Input => state.config.audio.input_device_name = device_name,
             DeviceType::Output => {
-                state.config.audio.output_device_name = device_name;
-                let audio_config = state.config.audio.clone();
+                let mut audio_config = state.config.audio.clone();
+                audio_config.output_device_name = device_name;
+
                 state.audio_manager().switch_output_device(&audio_config)?;
+
+                state.config.audio = audio_config;
             }
         }
 
