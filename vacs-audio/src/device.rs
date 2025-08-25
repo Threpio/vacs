@@ -3,8 +3,9 @@ use crate::TARGET_SAMPLE_RATE;
 use anyhow::Context;
 use anyhow::Result;
 use cpal::traits::{DeviceTrait, HostTrait};
-use cpal::{SampleFormat, SupportedStreamConfig, SupportedStreamConfigRange};
+use cpal::{Sample, SampleFormat, SupportedStreamConfig, SupportedStreamConfigRange};
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter};
 use tracing::instrument;
 
@@ -24,15 +25,153 @@ impl Display for DeviceType {
 }
 
 pub struct StreamDevice {
-    device_type: DeviceType,
-    device: cpal::Device,
-    config: cpal::StreamConfig,
-    sample_format: SampleFormat,
+    pub(crate) device_type: DeviceType,
+    pub(crate) device: cpal::Device,
+    pub(crate) config: cpal::StreamConfig,
+    pub(crate) sample_format: SampleFormat,
 }
 
 impl StreamDevice {
+    #[inline]
+    pub fn device_type(&self) -> DeviceType {
+        self.device_type
+    }
+
+    #[inline]
     pub fn name(&self) -> String {
         self.device.name().unwrap_or("".to_string())
+    }
+
+    #[inline]
+    pub fn sample_rate(&self) -> u32 {
+        self.config.sample_rate.0
+    }
+
+    #[inline]
+    pub fn channels(&self) -> u16 {
+        self.config.channels
+    }
+
+    #[instrument(level = "trace", skip(data_callback, error_callback), err)]
+    pub(crate) fn build_input_stream<D, E>(
+        &self,
+        mut data_callback: D,
+        error_callback: E,
+    ) -> Result<cpal::Stream>
+    where
+        D: FnMut(&[f32], &cpal::InputCallbackInfo) + Send + 'static,
+        E: FnMut(cpal::StreamError) + Send + 'static,
+    {
+        debug_assert!(matches!(self.device_type, DeviceType::Input));
+
+        match self.sample_format {
+            SampleFormat::F32 => self
+                .device
+                .build_input_stream(&self.config, data_callback, error_callback, None)
+                .map_err(Into::into),
+            SampleFormat::I16 => {
+                let buf: RefCell<Vec<f32>> = RefCell::new(Vec::new());
+                self.device
+                    .build_input_stream::<i16, _, _>(
+                        &self.config,
+                        move |input: &[i16], info| {
+                            let mut b = buf.borrow_mut();
+                            b.clear();
+                            b.reserve(input.len());
+                            for (dst, &src) in b.iter_mut().zip(input) {
+                                *dst = src.to_float_sample();
+                            }
+                            data_callback(&b, info);
+                        },
+                        error_callback,
+                        None,
+                    )
+                    .map_err(Into::into)
+            }
+            SampleFormat::U16 => {
+                let buf: RefCell<Vec<f32>> = RefCell::new(Vec::new());
+                self.device
+                    .build_input_stream::<u16, _, _>(
+                        &self.config,
+                        move |input: &[u16], info| {
+                            let mut b = buf.borrow_mut();
+                            b.clear();
+                            b.reserve(input.len());
+                            for (dst, &src) in b.iter_mut().zip(input) {
+                                *dst = src.to_float_sample();
+                            }
+                            data_callback(&b, info);
+                        },
+                        error_callback,
+                        None,
+                    )
+                    .map_err(Into::into)
+            }
+            other => Err(anyhow::anyhow!(
+                "Unsupported input sample format: {:?}",
+                other
+            )),
+        }
+    }
+
+    #[instrument(level = "trace", skip(data_callback, error_callback), err)]
+    pub(crate) fn build_output_stream<D, E>(
+        &self,
+        mut data_callback: D,
+        error_callback: E,
+    ) -> Result<cpal::Stream>
+    where
+        D: FnMut(&mut [f32], &cpal::OutputCallbackInfo) + Send + 'static,
+        E: FnMut(cpal::StreamError) + Send + 'static,
+    {
+        debug_assert!(matches!(self.device_type, DeviceType::Output));
+
+        match self.sample_format {
+            SampleFormat::F32 => self
+                .device
+                .build_output_stream(&self.config, data_callback, error_callback, None)
+                .map_err(Into::into),
+            SampleFormat::I16 => {
+                let buf = RefCell::<Vec<f32>>::new(Vec::new());
+                self.device
+                    .build_output_stream::<i16, _, _>(
+                        &self.config,
+                        move |output: &mut [i16], info| {
+                            let mut b = buf.borrow_mut();
+                            b.resize(output.len(), 0.0);
+                            data_callback(&mut b, info);
+                            for (dst, &src) in output.iter_mut().zip(&*b) {
+                                *dst = src.to_sample::<i16>();
+                            }
+                        },
+                        error_callback,
+                        None,
+                    )
+                    .map_err(Into::into)
+            }
+            SampleFormat::U16 => {
+                let buf = RefCell::<Vec<f32>>::new(Vec::new());
+                self.device
+                    .build_output_stream::<u16, _, _>(
+                        &self.config,
+                        move |output: &mut [u16], info| {
+                            let mut b = buf.borrow_mut();
+                            b.resize(output.len(), 0.0);
+                            data_callback(&mut b, info);
+                            for (dst, &src) in output.iter_mut().zip(&*b) {
+                                *dst = src.to_sample::<u16>();
+                            }
+                        },
+                        error_callback,
+                        None,
+                    )
+                    .map_err(Into::into)
+            }
+            other => Err(anyhow::anyhow!(
+                "Unsupported output sample format: {:?}",
+                other
+            )),
+        }
     }
 }
 
