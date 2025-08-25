@@ -1,4 +1,4 @@
-use crate::{Device, DeviceType, EncodedAudioFrame, FRAME_SIZE, SAMPLE_RATE};
+use crate::{Device, DeviceType, EncodedAudioFrame, FRAME_SIZE, TARGET_SAMPLE_RATE};
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use cpal::traits::{DeviceTrait, StreamTrait};
@@ -41,7 +41,7 @@ impl AudioInput {
         let mut encoded = vec![0u8; MAX_OPUS_FRAME_SIZE];
 
         let mut encoder =
-            opus::Encoder::new(SAMPLE_RATE, opus::Channels::Mono, opus::Application::Voip)
+            opus::Encoder::new(TARGET_SAMPLE_RATE, opus::Channels::Mono, opus::Application::Voip)
                 .context("Failed to create opus encoder")?;
         encoder.set_bitrate(opus::Bitrate::Max)?;
         encoder.set_inband_fec(true)?;
@@ -220,7 +220,7 @@ const INPUT_LEVEL_METER_WINDOW_MS: f32 = 15.0;
 impl Default for InputLevelMeter {
     fn default() -> Self {
         let window_samples =
-            ((SAMPLE_RATE as f32) * (INPUT_LEVEL_METER_WINDOW_MS / 1000.0)) as usize;
+            ((TARGET_SAMPLE_RATE as f32) * (INPUT_LEVEL_METER_WINDOW_MS / 1000.0)) as usize;
 
         Self {
             window_samples: window_samples.max(1),

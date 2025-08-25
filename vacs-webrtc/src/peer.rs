@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc};
 use tracing::instrument;
-use vacs_audio::{EncodedAudioFrame, SAMPLE_RATE};
+use vacs_audio::{EncodedAudioFrame, TARGET_SAMPLE_RATE};
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::{MediaEngine, MIME_TYPE_OPUS};
 use webrtc::api::APIBuilder;
@@ -70,7 +70,7 @@ impl Peer {
         let track = Arc::new(TrackLocalStaticSample::new(
             RTCRtpCodecCapability {
                 mime_type: MIME_TYPE_OPUS.to_owned(),
-                clock_rate: SAMPLE_RATE,
+                clock_rate: TARGET_SAMPLE_RATE,
                 channels: WEBRTC_CHANNELS,
                 ..Default::default()
             },

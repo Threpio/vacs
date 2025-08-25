@@ -1,4 +1,4 @@
-use crate::SAMPLE_RATE;
+use crate::TARGET_SAMPLE_RATE;
 use crate::sources::AudioSource;
 use std::time::Duration;
 use tracing::instrument;
@@ -56,7 +56,7 @@ impl WaveformSource {
         output_channels: usize,
         volume: f32,
     ) -> Self {
-        let sample_rate = SAMPLE_RATE as f32;
+        let sample_rate = TARGET_SAMPLE_RATE as f32;
 
         assert!(tone.freq > 0.0, "Tone frequency must be greater than 0");
         assert!(tone.amp > 0.0, "Tone amplitude must be greater than 0");
@@ -86,7 +86,7 @@ impl WaveformSource {
             sample_rate,
             tone_samples: (tone_dur.as_secs_f32() * sample_rate) as usize,
             silence_samples: pause_dur.map_or(0, |p| (p.as_secs_f32() * sample_rate) as usize),
-            restart_samples: (SAMPLE_RATE / 10) as usize,
+            restart_samples: (TARGET_SAMPLE_RATE / 10) as usize,
             looped: pause_dur.is_some(),
 
             cycle_pos: 0,

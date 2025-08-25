@@ -1,5 +1,5 @@
 use crate::sources::AudioSource;
-use crate::{EncodedAudioFrame, FRAME_SIZE, SAMPLE_RATE};
+use crate::{EncodedAudioFrame, FRAME_SIZE, TARGET_SAMPLE_RATE};
 use anyhow::{Context, Result};
 use ringbuf::traits::{Consumer, Producer, Split};
 use ringbuf::{HeapCons, HeapProd, HeapRb};
@@ -32,7 +32,7 @@ impl OpusSource {
         // Our captured input audio will always be in mono and is transmitted via a webrtc mono stream,
         // so we can safely default to a mono Opus decoder here. Interleaving to stereo output devices
         // is handled by `AudioSource` implementation.
-        let mut decoder = opus::Decoder::new(SAMPLE_RATE, opus::Channels::Mono)
+        let mut decoder = opus::Decoder::new(TARGET_SAMPLE_RATE, opus::Channels::Mono)
             .context("Failed to create Opus decoder")?;
 
         let decoder_task = tokio::runtime::Handle::current().spawn(

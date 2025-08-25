@@ -1,10 +1,11 @@
 use crate::config::AudioDeviceConfig;
-use crate::SAMPLE_RATE;
+use crate::TARGET_SAMPLE_RATE;
 use anyhow::Context;
+use anyhow::Result;
 use cpal::traits::{DeviceTrait, HostTrait};
-use cpal::{SupportedStreamConfig, SupportedStreamConfigRange};
+use cpal::{SampleFormat, SupportedStreamConfig, SupportedStreamConfigRange};
 use serde::{Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use tracing::instrument;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -19,6 +20,363 @@ impl Display for DeviceType {
             DeviceType::Input => write!(f, "input"),
             DeviceType::Output => write!(f, "output"),
         }
+    }
+}
+
+pub struct StreamDevice {
+    device_type: DeviceType,
+    device: cpal::Device,
+    config: cpal::StreamConfig,
+    sample_format: SampleFormat,
+}
+
+impl StreamDevice {
+    pub fn name(&self) -> String {
+        self.device.name().unwrap_or("".to_string())
+    }
+}
+
+impl Debug for StreamDevice {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "StreamDevice {{ device_type: {}, device: {}, config: {:?}, sample_format: {:?} }}",
+            self.device_type,
+            self.device.name().unwrap_or_default(),
+            self.config,
+            self.sample_format
+        )
+    }
+}
+
+pub struct DeviceSelector {}
+
+impl DeviceSelector {
+    #[instrument(level = "debug", err)]
+    pub fn open(
+        preferred_host: Option<&str>,
+        preferred_device_name: Option<&str>,
+        device_type: DeviceType,
+    ) -> Result<(StreamDevice, bool)> {
+        tracing::debug!("Opening device");
+
+        let host = Self::select_host(preferred_host);
+        let (device, stream_config, is_fallback) =
+            Self::pick_device_with_stream_config(&host, preferred_device_name, device_type)?;
+
+        tracing::debug!(?stream_config, device = ?DeviceDebug(&device), ?is_fallback, "Opened device");
+        Ok((
+            StreamDevice {
+                device_type,
+                device,
+                config: stream_config.config(),
+                sample_format: stream_config.sample_format(),
+            },
+            is_fallback,
+        ))
+    }
+
+    #[instrument(level = "debug")]
+    pub fn all_host_names() -> Vec<String> {
+        tracing::debug!("Retrieving all host names");
+
+        let host_names = cpal::available_hosts()
+            .iter()
+            .map(|id| id.name().to_string())
+            .collect::<Vec<_>>();
+        tracing::debug!(host_count = ?host_names.len(), "Retrieved host names");
+        host_names
+    }
+
+    #[instrument(level = "debug")]
+    pub fn default_host_name() -> String {
+        tracing::debug!("Retrieving default host name");
+
+        cpal::default_host().id().name().to_string()
+    }
+
+    #[instrument(level = "debug", err)]
+    pub fn all_device_names(
+        preferred_host: Option<&str>,
+        device_type: DeviceType,
+    ) -> Result<Vec<String>> {
+        tracing::debug!("Retrieving all devices names with at least one stream config");
+
+        let host = Self::select_host(preferred_host);
+        let devices = Self::host_devices(&host, device_type)?;
+
+        let device_names = devices
+            .into_iter()
+            .filter_map(|device| {
+                if let Ok(device_name) = device.name()
+                    && Self::pick_best_stream_config(&device, device_type).is_ok()
+                {
+                    Some(device_name)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        tracing::debug!(device_count = ?device_names.len(), "Retrieved device names");
+        Ok(device_names)
+    }
+
+    #[instrument(level = "debug", err)]
+    pub fn default_device_name(
+        preferred_host: Option<&str>,
+        device_type: DeviceType,
+    ) -> Result<String> {
+        tracing::debug!("Retrieving device name for default device");
+
+        let host = Self::select_host(preferred_host);
+        let (device, _) = Self::select_device(&host, None, device_type)?;
+        Self::pick_best_stream_config(&device, device_type)?;
+
+        tracing::debug!(device = ?DeviceDebug(&device), "Retrieved device name for default device");
+        Ok(device.name().unwrap_or_default())
+    }
+
+    #[instrument(level = "trace")]
+    fn select_host(preferred_host: Option<&str>) -> cpal::Host {
+        tracing::trace!("Selecting host");
+
+        let hosts = cpal::available_hosts();
+
+        if let Some(name) = preferred_host {
+            if let Some(id) = hosts.iter().find(|id| id.name().eq_ignore_ascii_case(name)) {
+                tracing::trace!(?id, "Selected preferred audio host");
+                return cpal::host_from_id(*id).unwrap_or(cpal::default_host());
+            }
+            if let Some(id) = hosts
+                .iter()
+                .find(|id| id.name().to_lowercase().contains(&name.to_lowercase()))
+            {
+                tracing::trace!(?id, "Selected preferred audio host (based on substring match)");
+                return cpal::host_from_id(*id).unwrap_or(cpal::default_host());
+            }
+        }
+
+        tracing::trace!("Selected default audio host");
+        cpal::default_host()
+    }
+
+    #[instrument(level = "trace", err, skip(host), fields(host = ?HostDebug(host)))]
+    fn pick_device_with_stream_config(
+        host: &cpal::Host,
+        preferred_device_name: Option<&str>,
+        device_type: DeviceType,
+    ) -> Result<(cpal::Device, SupportedStreamConfig, bool)> {
+        let (mut device, mut is_fallback) = Self::select_device(host, preferred_device_name, device_type)?;
+
+        let stream_config = match Self::pick_best_stream_config(&device, device_type) {
+            Ok(stream_config) => stream_config,
+            Err(err) => {
+                tracing::warn!(?err, device = ?DeviceDebug(&device), "Failed to pick stream config for preferred device, trying to find fallback device");
+
+                let devices = Self::host_devices(host, device_type)?;
+
+                if let Some((dev, config)) = devices.into_iter().find_map(|dev| {
+                    if dev
+                        .name()
+                        .map(|n| n.eq_ignore_ascii_case(&device.name().unwrap_or_default()))
+                        .unwrap_or(false)
+                    {
+                        return None;
+                    }
+
+                    match Self::pick_best_stream_config(&dev, device_type) {
+                        Ok(config) => Some((dev, config)),
+                        Err(_) => None,
+                    }
+                }) {
+                    tracing::info!(device = ?DeviceDebug(&dev), ?config, "Selected fallback device");
+                    device = dev;
+                    is_fallback = true;
+                    config
+                } else {
+                    anyhow::bail!("No supported stream config found for any device");
+                }
+            }
+        };
+
+        Ok((device, stream_config, is_fallback))
+    }
+
+    #[instrument(level = "trace", err, skip(host), fields(host = ?HostDebug(host)))]
+    fn host_devices(host: &cpal::Host, device_type: DeviceType) -> Result<Vec<cpal::Device>> {
+        match device_type {
+            DeviceType::Input => Ok(host
+                .input_devices()
+                .context("Failed to enumerate input devices")?
+                .collect()),
+            DeviceType::Output => Ok(host
+                .output_devices()
+                .context("Failed to enumerate output devices")?
+                .collect()),
+        }
+    }
+
+    #[instrument(level = "trace", err, skip(host), fields(host = ?HostDebug(host)))]
+    fn select_device(
+        host: &cpal::Host,
+        preferred_device_name: Option<&str>,
+        device_type: DeviceType,
+    ) -> Result<(cpal::Device, bool)> {
+        tracing::trace!("Selecting device");
+
+        if let Some(name) = preferred_device_name {
+            let devices = Self::host_devices(host, device_type)?;
+
+            if let Some(device) = devices.iter().find(|d| {
+                d.name()
+                    .map(|n| n.eq_ignore_ascii_case(name))
+                    .unwrap_or(false)
+            }) {
+                tracing::trace!(device = ?DeviceDebug(device), "Selected preferred device");
+                return Ok((device.clone(), false));
+            }
+
+            if let Some(device) = devices.iter().find(|d| {
+                d.name()
+                    .map(|n| n.to_lowercase().contains(&name.to_lowercase()))
+                    .unwrap_or(false)
+            }) {
+                tracing::trace!(device = ?DeviceDebug(device), "Selected preferred device (based on substring match)");
+                return Ok((device.clone(), false));
+            }
+        }
+
+        let device = match device_type {
+            DeviceType::Input => host
+                .default_input_device()
+                .context("Failed to get default input device")?,
+            DeviceType::Output => host
+                .default_output_device()
+                .context("Failed to get default output device")?,
+        };
+        tracing::trace!(device = ?DeviceDebug(&device), "Selected default device");
+        Ok((device, true))
+    }
+
+    #[instrument(level = "trace", err, skip(device), fields(device = ?DeviceDebug(device)))]
+    fn pick_best_stream_config(
+        device: &cpal::Device,
+        device_type: DeviceType,
+    ) -> Result<SupportedStreamConfig> {
+        tracing::trace!("Picking best stream config");
+
+        let (configs, preferred_channels): (Vec<SupportedStreamConfigRange>, u16) =
+            match device_type {
+                DeviceType::Input => (
+                    device
+                        .supported_input_configs()
+                        .context("Failed to get supported input configs")?
+                        .collect(),
+                    1,
+                ),
+                DeviceType::Output => (
+                    device
+                        .supported_output_configs()
+                        .context("Failed to get supported output configs")?
+                        .collect(),
+                    2,
+                ),
+            };
+
+        let mut best: Option<(SupportedStreamConfigRange, StreamConfigScore)> = None;
+
+        for range in configs {
+            let score = Self::score_stream_config_range(&range, preferred_channels);
+            match &mut best {
+                None => best = Some((range, score)),
+                Some((_, best_score)) => {
+                    if score < *best_score {
+                        *best_score = score;
+                        best = Some((range, score));
+                    }
+                }
+            }
+        }
+
+        let (range, score) =
+            best.ok_or_else(|| anyhow::anyhow!("No supported stream config found"))?;
+        let sample_rate =
+            Self::closest_sample_rate(range.min_sample_rate().0, range.max_sample_rate().0);
+
+        tracing::trace!(?range, ?score, ?sample_rate, "Picked best stream config");
+        Ok(range.with_sample_rate(cpal::SampleRate(sample_rate)))
+    }
+
+    fn score_stream_config_range(
+        range: &SupportedStreamConfigRange,
+        preferred_channels: u16,
+    ) -> StreamConfigScore {
+        let sample_rate_distance =
+            Self::sample_rate_distance(range.min_sample_rate().0, range.max_sample_rate().0);
+
+        let channels_distance = range.channels().abs_diff(preferred_channels);
+
+        let format_preference = match range.sample_format() {
+            SampleFormat::F32 => 0,
+            SampleFormat::I16 => 1,
+            SampleFormat::U16 => 2,
+            _ => 3,
+        };
+
+        StreamConfigScore(sample_rate_distance, channels_distance, format_preference)
+    }
+
+    fn sample_rate_distance(min: u32, max: u32) -> u32 {
+        if min <= TARGET_SAMPLE_RATE && max >= TARGET_SAMPLE_RATE {
+            0
+        } else if TARGET_SAMPLE_RATE < min {
+            min - TARGET_SAMPLE_RATE
+        } else {
+            TARGET_SAMPLE_RATE - max
+        }
+    }
+
+    fn closest_sample_rate(min: u32, max: u32) -> u32 {
+        if min <= TARGET_SAMPLE_RATE && max >= TARGET_SAMPLE_RATE {
+            TARGET_SAMPLE_RATE
+        } else if TARGET_SAMPLE_RATE < min {
+            min
+        } else {
+            max
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+struct StreamConfigScore(u32, u16, u8); // sample_rate_distance, channels_distance, format_preference
+
+impl Ord for StreamConfigScore {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (self.0, self.1, self.2).cmp(&(other.0, other.1, other.2))
+    }
+}
+impl PartialOrd for StreamConfigScore {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+struct DeviceDebug<'a>(&'a cpal::Device);
+
+impl<'a> Debug for DeviceDebug<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Device")
+            .field(&self.0.name().unwrap_or_default())
+            .finish()
+    }
+}
+
+struct HostDebug<'a>(&'a cpal::Host);
+
+impl<'a> Debug for HostDebug<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Host").field(&self.0.id().name()).finish()
     }
 }
 
@@ -148,7 +506,7 @@ impl Device {
         host_name: &str,
         device_type: &DeviceType,
     ) -> anyhow::Result<()> {
-        let host = find_host(if host_name == "" {
+        let host = find_host(if host_name.is_empty() {
             None
         } else {
             Some(host_name)
@@ -315,10 +673,10 @@ fn find_supported_stream_config(
         .find(|c| {
             c.sample_format() == cpal::SampleFormat::F32
                 && c.channels() == config.channels
-                && c.min_sample_rate().0 <= SAMPLE_RATE
-                && c.max_sample_rate().0 >= SAMPLE_RATE
+                && c.min_sample_rate().0 <= TARGET_SAMPLE_RATE
+                && c.max_sample_rate().0 >= TARGET_SAMPLE_RATE
         })
         .ok_or_else(|| anyhow::anyhow!("No supported {} stream config found", device_type))?;
 
-    Ok(config_range.with_sample_rate(cpal::SampleRate(SAMPLE_RATE)))
+    Ok(config_range.with_sample_rate(cpal::SampleRate(TARGET_SAMPLE_RATE)))
 }
