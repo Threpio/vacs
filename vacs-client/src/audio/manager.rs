@@ -4,12 +4,13 @@ use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use vacs_audio::error::AudioStartError;
 use vacs_audio::sources::opus::OpusSource;
 use vacs_audio::sources::waveform::{Waveform, WaveformSource, WaveformTone};
 use vacs_audio::sources::AudioSourceId;
 use vacs_audio::stream::capture::{CaptureStream, InputLevel};
-use vacs_audio::{DeviceSelector, DeviceType, EncodedAudioFrame};
 use vacs_audio::stream::playback::PlaybackStream;
+use vacs_audio::{DeviceSelector, DeviceType, EncodedAudioFrame};
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum SourceType {
@@ -21,7 +22,12 @@ pub enum SourceType {
 }
 
 impl SourceType {
-    fn into_waveform_source(self, sample_rate: f32, output_channels: usize, volume: f32) -> WaveformSource {
+    fn into_waveform_source(
+        self,
+        sample_rate: f32,
+        output_channels: usize,
+        volume: f32,
+    ) -> WaveformSource {
         match self {
             SourceType::Opus => {
                 unimplemented!("Cannot create waveform source for Opus SourceType")
@@ -205,9 +211,9 @@ impl AudioManager {
     ) -> Result<(), Error> {
         if self.source_ids.contains_key(&SourceType::Opus) {
             log::warn!("Tried to attach call but a call was already attached");
-            return Err(Error::AudioDevice(
-                "Tried to attach call but a call was already attached".to_string(),
-            ));
+            return Err(Error::AudioDevice(Box::new(AudioStartError::Other(
+                anyhow::anyhow!("Tried to attach call but a call was already attached"),
+            ))));
         }
 
         self.source_ids.insert(

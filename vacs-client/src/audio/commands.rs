@@ -1,19 +1,27 @@
+use crate::app::state::audio::AppStateAudioExt;
+use crate::app::state::webrtc::AppStateWebrtcExt;
 use crate::app::state::AppState;
 use crate::audio::manager::SourceType;
 use crate::audio::{AudioDevices, AudioHosts, AudioVolumes, VolumeType};
 use crate::config::{Persistable, PersistedAudioConfig, AUDIO_SETTINGS_FILE_NAME};
 use crate::error::Error;
 use tauri::{AppHandle, Emitter, Manager, State};
+use vacs_audio::error::AudioStartError;
 use vacs_audio::{DeviceSelector, DeviceType};
-use crate::app::state::audio::AppStateAudioExt;
-use crate::app::state::webrtc::AppStateWebrtcExt;
 
 #[tauri::command]
 #[vacs_macros::log_err]
 pub async fn audio_get_hosts(app_state: State<'_, AppState>) -> Result<AudioHosts, Error> {
     log::info!("Getting audio hosts");
 
-    let mut selected = app_state.lock().await.config.audio.host_name.clone().unwrap_or_default();
+    let mut selected = app_state
+        .lock()
+        .await
+        .config
+        .audio
+        .host_name
+        .clone()
+        .unwrap_or_default();
     if selected.is_empty() {
         selected = DeviceSelector::default_host_name();
     }
@@ -36,9 +44,9 @@ pub async fn audio_set_host(
     let mut state = app_state.lock().await;
 
     if state.active_call_peer_id().is_some() {
-        return Err(Error::AudioDevice(
-            "Cannot set audio host while call is active".to_string(),
-        ));
+        return Err(Error::AudioDevice(Box::new(AudioStartError::Other(
+            anyhow::anyhow!("Cannot set audio host while call is active"),
+        ))));
     }
 
     // TODO actually switch audio host
@@ -46,7 +54,7 @@ pub async fn audio_set_host(
     log::info!("Setting audio host (name: {host_name})");
 
     let persisted_audio_config: PersistedAudioConfig = {
-        state.config.audio.host_name = Some(host_name).filter(|x|!x.is_empty());
+        state.config.audio.host_name = Some(host_name).filter(|x| !x.is_empty());
         state.config.audio.clone().into()
     };
 
@@ -67,9 +75,7 @@ pub async fn audio_get_devices(
 ) -> Result<AudioDevices, Error> {
     log::info!("Getting audio devices (type: {:?})", device_type);
 
-    let state = app_state
-        .lock()
-        .await;
+    let state = app_state.lock().await;
 
     let selected = match device_type {
         DeviceType::Input => state
@@ -109,10 +115,10 @@ pub async fn audio_set_device(
 ) -> Result<(), Error> {
     let mut state = app_state.lock().await;
 
-    if state.active_call_peer_id().is_some() {
-        return Err(Error::AudioDevice(
-            "Cannot set audio device while call is active".to_string(),
-        ));
+    if state.audio_manager().is_input_device_attached() {
+        return Err(Error::AudioDevice(Box::new(AudioStartError::Other(
+            anyhow::anyhow!("Cannot set audio device while call is active"),
+        ))));
     }
 
     log::info!(
@@ -121,7 +127,7 @@ pub async fn audio_set_device(
         device_type
     );
 
-    let device_name = Some(device_name).filter(|x|!x.is_empty());
+    let device_name = Some(device_name).filter(|x| !x.is_empty());
     let persisted_audio_config: PersistedAudioConfig = {
         match device_type {
             DeviceType::Input => state.config.audio.input_device_name = device_name,
@@ -246,9 +252,9 @@ pub async fn audio_start_input_level_meter(
     let audio_config = &state.config.audio.clone();
 
     if state.audio_manager().is_input_device_attached() {
-        return Err(Error::AudioDevice(
-            "Cannot start input level meter while call is active".to_string(),
-        ));
+        return Err(Error::AudioDevice(Box::new(AudioStartError::Other(
+            anyhow::anyhow!("Cannot start input level meter while call is active"),
+        ))));
     }
 
     state.audio_manager().attach_input_level_meter(
@@ -278,6 +284,10 @@ pub async fn audio_set_input_muted(
     muted: bool,
 ) -> Result<(), Error> {
     log::info!("Setting audio input muted (muted: {muted})");
-    app_state.lock().await.audio_manager().set_input_muted(muted);
+    app_state
+        .lock()
+        .await
+        .audio_manager()
+        .set_input_muted(muted);
     Ok(())
 }

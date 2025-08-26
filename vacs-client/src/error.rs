@@ -8,7 +8,7 @@ pub enum Error {
     #[error("Unauthorized")]
     Unauthorized,
     #[error("Audio device error: {0}")]
-    AudioDevice(String),
+    AudioDevice(#[from] Box<vacs_audio::error::AudioStartError>),
     #[error("Network error: {0}")]
     Network(String),
     #[error("Signaling error: {0}")]
@@ -19,6 +19,12 @@ pub enum Error {
     Webrtc(String),
     #[error(transparent)]
     Other(#[from] Box<anyhow::Error>),
+}
+
+impl From<vacs_audio::error::AudioStartError> for Error {
+    fn from(err: vacs_audio::error::AudioStartError) -> Self {
+        Error::AudioDevice(Box::new(err))
+    }
 }
 
 impl From<vacs_signaling::error::SignalingError> for Error {
@@ -128,7 +134,7 @@ impl From<&Error> for FrontendError {
                 "Your authentication expired. Please log in again.",
                 5000,
             ),
-            Error::AudioDevice(err) => FrontendError::new("Audio device error", err),
+            Error::AudioDevice(err) => FrontendError::new("Audio device error", err.to_string()),
             Error::Reqwest(err) => FrontendError::new("HTTP error", err.to_string()),
             Error::Network(err) => FrontendError::new("Network error", err),
             Error::Signaling(err) => FrontendError::new("Signaling error", err.to_string()),
