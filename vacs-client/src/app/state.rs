@@ -41,7 +41,7 @@ impl AppStateInner {
 
         // TODO handle is_fallback and update config accordingly
 
-        match DeviceSelector::open(config.audio.host_name.as_deref(), config.audio.output_device_name.as_deref(), DeviceType::Output) {
+        match DeviceSelector::open(DeviceType::Output, config.audio.host_name.as_deref(), config.audio.output_device_name.as_deref()) {
             Ok(device) => {
                 log::info!("Using output device: {device:?}");
             }
@@ -50,7 +50,7 @@ impl AppStateInner {
             }
         }
 
-        match DeviceSelector::open(config.audio.host_name.as_deref(), config.audio.input_device_name.as_deref(), DeviceType::Input) {
+        match DeviceSelector::open(DeviceType::Input, config.audio.host_name.as_deref(), config.audio.input_device_name.as_deref()) {
             Ok(device) => {
                 log::info!("Using input device: {device:?}");
             }

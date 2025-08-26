@@ -4,12 +4,12 @@ use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::sync::mpsc;
-use vacs_audio::input::{AudioInput, InputLevel};
 use vacs_audio::output::AudioOutput;
 use vacs_audio::sources::opus::OpusSource;
 use vacs_audio::sources::waveform::{Waveform, WaveformSource, WaveformTone};
 use vacs_audio::sources::AudioSourceId;
-use vacs_audio::{Device, DeviceType, EncodedAudioFrame};
+use vacs_audio::stream::capture::{CaptureStream, InputLevel};
+use vacs_audio::{Device, DeviceSelector, DeviceType, EncodedAudioFrame};
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum SourceType {
@@ -64,7 +64,7 @@ impl SourceType {
 
 pub struct AudioManager {
     output: AudioOutput,
-    input: Option<AudioInput>,
+    input: Option<CaptureStream>,
     source_ids: HashMap<SourceType, AudioSourceId>,
 }
 
@@ -91,18 +91,21 @@ impl AudioManager {
         audio_config: &AudioConfig,
         tx: mpsc::Sender<EncodedAudioFrame>,
     ) -> Result<()> {
-        let input_device = Device::new(
-            &audio_config.device_config(DeviceType::Input),
+        // TODO handle is_fallback?
+        let (device, _) = DeviceSelector::open(
             DeviceType::Input,
-        )?;
+            audio_config.host_name.as_deref(),
+            audio_config.input_device_name.as_deref(),
+        )
+        .context("Failed to open input device")?;
         self.input = Some(
-            AudioInput::start(
-                &input_device,
+            CaptureStream::start(
+                device,
                 tx,
                 audio_config.input_device_volume,
                 audio_config.input_device_volume_amp,
             )
-                .context("Failed to start audio input")?,
+            .context("Failed to start capture stream")?,
         );
         Ok(())
     }
@@ -112,18 +115,21 @@ impl AudioManager {
         audio_config: &AudioConfig,
         emit: Box<dyn Fn(InputLevel) + Send>,
     ) -> Result<()> {
-        let input_device = Device::new(
-            &audio_config.device_config(DeviceType::Input),
+        // TODO handle is_fallback?
+        let (device, _) = DeviceSelector::open(
             DeviceType::Input,
-        )?;
+            audio_config.host_name.as_deref(),
+            audio_config.input_device_name.as_deref(),
+        )
+        .context("Failed to open input device")?;
         self.input = Some(
-            AudioInput::start_level_meter(
-                &input_device,
+            CaptureStream::start_level_meter(
+                device,
                 emit,
                 audio_config.input_device_volume,
                 audio_config.input_device_volume_amp,
             )
-                .context("Failed to start audio input level meter")?,
+            .context("Failed to start capture stream level meter")?,
         );
         Ok(())
     }

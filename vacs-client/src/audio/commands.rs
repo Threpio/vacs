@@ -4,7 +4,7 @@ use crate::audio::{AudioDevices, AudioHosts, AudioVolumes, VolumeType};
 use crate::config::{Persistable, PersistedAudioConfig, AUDIO_SETTINGS_FILE_NAME};
 use crate::error::Error;
 use tauri::{AppHandle, Emitter, Manager, State};
-use vacs_audio::{Device, DeviceSelector, DeviceType};
+use vacs_audio::{DeviceSelector, DeviceType};
 use crate::app::state::audio::AppStateAudioExt;
 use crate::app::state::webrtc::AppStateWebrtcExt;
 
@@ -85,6 +85,8 @@ pub async fn audio_get_devices(
             .clone()
             .unwrap_or_default(),
     };
+
+    // TODO check if selected default device is actually still default
 
     let host = state.config.audio.host_name.as_deref();
     let default_device = DeviceSelector::default_device_name(host, device_type)?;
