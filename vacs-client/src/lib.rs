@@ -16,6 +16,7 @@ pub fn run() {
         .plugin(
             tauri_plugin_log::Builder::new()
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(5))
+                .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
                 .level(log::LevelFilter::Warn)
                 .level_for("vacs_client_lib", log::LevelFilter::Trace)
                 .level_for("vacs_audio", log::LevelFilter::Trace)
