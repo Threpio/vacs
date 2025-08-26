@@ -446,7 +446,7 @@ impl DeviceSelector {
                 .context("Failed to get default output device")?,
         };
         tracing::trace!(device = ?DeviceDebug(&device), "Selected default device");
-        Ok((device, true))
+        Ok((device, preferred_device_name.is_some()))
     }
 
     #[instrument(level = "trace", err, skip(device), fields(device = ?DeviceDebug(device)))]
