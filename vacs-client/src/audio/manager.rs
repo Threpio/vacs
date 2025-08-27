@@ -1,10 +1,9 @@
 use crate::config::AudioConfig;
 use crate::error::Error;
-use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::sync::mpsc;
-use vacs_audio::error::AudioStartError;
+use vacs_audio::error::AudioError;
 use vacs_audio::sources::opus::OpusSource;
 use vacs_audio::sources::waveform::{Waveform, WaveformSource, WaveformTone};
 use vacs_audio::sources::AudioSourceId;
@@ -79,7 +78,7 @@ pub struct AudioManager {
 }
 
 impl AudioManager {
-    pub fn new(audio_config: &AudioConfig) -> Result<Self> {
+    pub fn new(audio_config: &AudioConfig) -> Result<Self, Error> {
         let (output, source_ids) = Self::create_playback_stream(audio_config)?;
 
         Ok(Self {
@@ -89,7 +88,7 @@ impl AudioManager {
         })
     }
 
-    pub fn switch_output_device(&mut self, audio_config: &AudioConfig) -> Result<()> {
+    pub fn switch_output_device(&mut self, audio_config: &AudioConfig) -> Result<(), Error> {
         let (output, source_ids) = Self::create_playback_stream(audio_config)?;
         self.output = output;
         self.source_ids = source_ids;
@@ -100,22 +99,20 @@ impl AudioManager {
         &mut self,
         audio_config: &AudioConfig,
         tx: mpsc::Sender<EncodedAudioFrame>,
-    ) -> Result<()> {
+    ) -> Result<(), Error> {
         // TODO handle is_fallback?
         let (device, _) = DeviceSelector::open(
             DeviceType::Input,
             audio_config.host_name.as_deref(),
             audio_config.input_device_name.as_deref(),
-        )
-        .context("Failed to open input device")?;
+        )?;
         self.input = Some(
             CaptureStream::start(
                 device,
                 tx,
                 audio_config.input_device_volume,
                 audio_config.input_device_volume_amp,
-            )
-            .context("Failed to start capture stream")?,
+            )?,
         );
         Ok(())
     }
@@ -124,22 +121,20 @@ impl AudioManager {
         &mut self,
         audio_config: &AudioConfig,
         emit: Box<dyn Fn(InputLevel) + Send>,
-    ) -> Result<()> {
+    ) -> Result<(), Error> {
         // TODO handle is_fallback?
         let (device, _) = DeviceSelector::open(
             DeviceType::Input,
             audio_config.host_name.as_deref(),
             audio_config.input_device_name.as_deref(),
-        )
-        .context("Failed to open input device")?;
+        )?;
         self.input = Some(
             CaptureStream::start_level_meter(
                 device,
                 emit,
                 audio_config.input_device_volume,
                 audio_config.input_device_volume_amp,
-            )
-            .context("Failed to start capture stream level meter")?,
+            )?,
         );
         Ok(())
     }
@@ -211,7 +206,7 @@ impl AudioManager {
     ) -> Result<(), Error> {
         if self.source_ids.contains_key(&SourceType::Opus) {
             log::warn!("Tried to attach call but a call was already attached");
-            return Err(Error::AudioDevice(Box::new(AudioStartError::Other(
+            return Err(Error::AudioDevice(Box::new(AudioError::Other(
                 anyhow::anyhow!("Tried to attach call but a call was already attached"),
             ))));
         }
@@ -242,7 +237,7 @@ impl AudioManager {
 
     fn create_playback_stream(
         audio_config: &AudioConfig,
-    ) -> Result<(PlaybackStream, HashMap<SourceType, AudioSourceId>)> {
+    ) -> Result<(PlaybackStream, HashMap<SourceType, AudioSourceId>), Error> {
         // TODO: handle is_fallback?
         let (output_device, _) = DeviceSelector::open(
             DeviceType::Output,
@@ -254,7 +249,7 @@ impl AudioManager {
         let channels = output_device.channels() as usize;
 
         let mut output =
-            PlaybackStream::start(output_device).context("Failed to start audio output")?;
+            PlaybackStream::start(output_device)?;
 
         let mut source_ids = HashMap::new();
         source_ids.insert(

@@ -1,7 +1,7 @@
 use crate::config::AudioDeviceConfig;
+use crate::error::AudioError;
 use crate::TARGET_SAMPLE_RATE;
 use anyhow::Context;
-use anyhow::Result;
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{Sample, SampleFormat, SupportedStreamConfig, SupportedStreamConfigRange};
 use rubato::{SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction};
@@ -183,7 +183,7 @@ impl StreamDevice {
         )
     }
 
-    pub(crate) fn resampler(&self) -> Result<Option<SincFixedIn<f32>>> {
+    pub(crate) fn resampler(&self) -> Result<Option<SincFixedIn<f32>>, AudioError> {
         if self.sample_rate() == TARGET_SAMPLE_RATE {
             Ok(None)
         } else {
@@ -239,7 +239,7 @@ impl DeviceSelector {
         device_type: DeviceType,
         preferred_host: Option<&str>,
         preferred_device_name: Option<&str>,
-    ) -> Result<(StreamDevice, bool)> {
+    ) -> Result<(StreamDevice, bool), AudioError> {
         tracing::debug!("Opening device");
 
         let host = Self::select_host(preferred_host);
@@ -281,7 +281,7 @@ impl DeviceSelector {
     pub fn all_device_names(
         preferred_host: Option<&str>,
         device_type: DeviceType,
-    ) -> Result<Vec<String>> {
+    ) -> Result<Vec<String>, AudioError> {
         tracing::debug!("Retrieving all devices names with at least one stream config");
 
         let host = Self::select_host(preferred_host);
@@ -308,7 +308,7 @@ impl DeviceSelector {
     pub fn default_device_name(
         preferred_host: Option<&str>,
         device_type: DeviceType,
-    ) -> Result<String> {
+    ) -> Result<String, AudioError> {
         tracing::debug!("Retrieving device name for default device");
 
         let host = Self::select_host(preferred_host);
@@ -351,7 +351,7 @@ impl DeviceSelector {
         device_type: DeviceType,
         host: &cpal::Host,
         preferred_device_name: Option<&str>,
-    ) -> Result<(cpal::Device, SupportedStreamConfig, bool)> {
+    ) -> Result<(cpal::Device, SupportedStreamConfig, bool), AudioError> {
         let (mut device, mut is_fallback) =
             Self::select_device(device_type, host, preferred_device_name)?;
 
@@ -387,7 +387,9 @@ impl DeviceSelector {
                     is_fallback = true;
                     (config, score)
                 } else {
-                    anyhow::bail!("No supported stream config found for any device");
+                    return Err(AudioError::Other(anyhow::anyhow!(
+                        "No supported stream config found for any device"
+                    )));
                 }
             }
         };
@@ -396,7 +398,10 @@ impl DeviceSelector {
     }
 
     #[instrument(level = "trace", err, skip(host), fields(host = ?HostDebug(host)))]
-    fn host_devices(device_type: DeviceType, host: &cpal::Host) -> Result<Vec<cpal::Device>> {
+    fn host_devices(
+        device_type: DeviceType,
+        host: &cpal::Host,
+    ) -> Result<Vec<cpal::Device>, AudioError> {
         match device_type {
             DeviceType::Input => Ok(host
                 .input_devices()
@@ -414,7 +419,7 @@ impl DeviceSelector {
         device_type: DeviceType,
         host: &cpal::Host,
         preferred_device_name: Option<&str>,
-    ) -> Result<(cpal::Device, bool)> {
+    ) -> Result<(cpal::Device, bool), AudioError> {
         tracing::trace!("Selecting device");
 
         if let Some(name) = preferred_device_name {
@@ -455,7 +460,7 @@ impl DeviceSelector {
     fn pick_best_stream_config(
         device: &cpal::Device,
         device_type: DeviceType,
-    ) -> Result<(SupportedStreamConfig, StreamConfigScore)> {
+    ) -> Result<(SupportedStreamConfig, StreamConfigScore), AudioError> {
         tracing::trace!("Picking best stream config");
 
         let (configs, preferred_channels): (Vec<SupportedStreamConfigRange>, u16) =

@@ -2,61 +2,61 @@ use cpal::{BuildStreamError, PlayStreamError, StreamError};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum AudioStartError {
-    #[error("Audio device is not available")]
+pub enum AudioError {
+    #[error("Audio device is not available, check if it is plugged in properly")]
     DeviceNotAvailable,
-    #[error("Unsupported config")]
+    #[error("Unsupported audio configuration, try a different audio device")]
     UnsupportedConfig,
-    #[error("Audio device is busy or permission was denied")]
+    #[error("Audio device is busy or access was denied")]
     DeviceBusyOrDenied,
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
 
-impl From<BuildStreamError> for AudioStartError {
+impl From<BuildStreamError> for AudioError {
     fn from(e: BuildStreamError) -> Self {
         use BuildStreamError::*;
         match e {
-            DeviceNotAvailable => AudioStartError::DeviceNotAvailable,
-            StreamConfigNotSupported | InvalidArgument => AudioStartError::UnsupportedConfig,
-            StreamIdOverflow => AudioStartError::Other(anyhow::anyhow!("Stream ID overflow")),
+            DeviceNotAvailable => AudioError::DeviceNotAvailable,
+            StreamConfigNotSupported | InvalidArgument => AudioError::UnsupportedConfig,
+            StreamIdOverflow => AudioError::Other(anyhow::anyhow!("Stream ID overflow")),
             BackendSpecific { err } => {
-                tracing::debug!(?err, "Backend specific cpal build stream error");
-                AudioStartError::Other(anyhow::anyhow!(err.description))
+                match err.description.as_str() {
+                    "0x8889000A" => {
+                        tracing::info!("Received WASAPI error 0x8889000A: device is busy or in use in exclusive mode");
+                        AudioError::DeviceBusyOrDenied
+                    }
+                    description => {
+                        tracing::warn!(?description, "Backend specific cpal build stream error");
+                        AudioError::Other(anyhow::anyhow!(description.to_string()))
+                    },
+                }
             }
         }
     }
 }
 
-impl From<PlayStreamError> for AudioStartError {
+impl From<PlayStreamError> for AudioError {
     fn from(e: PlayStreamError) -> Self {
         use PlayStreamError::*;
         match e {
-            DeviceNotAvailable => AudioStartError::DeviceNotAvailable,
+            DeviceNotAvailable => AudioError::DeviceNotAvailable,
             BackendSpecific { err } => {
                 tracing::debug!(?err, "Backend specific cpal play stream error");
-                AudioStartError::Other(anyhow::anyhow!(err.description))
+                AudioError::Other(anyhow::anyhow!(err.description))
             }
         }
     }
 }
 
-#[derive(Debug, Error)]
-pub enum AudioRuntimeError {
-    #[error("Audio device was disconnected")]
-    DeviceLost,
-    #[error("{0}")]
-    Other(String),
-}
-
-impl From<StreamError> for AudioRuntimeError {
+impl From<StreamError> for AudioError {
     fn from(e: StreamError) -> Self {
-        use cpal::StreamError::*;
+        use StreamError::*;
         match e {
-            DeviceNotAvailable => AudioRuntimeError::DeviceLost,
+            DeviceNotAvailable => AudioError::DeviceNotAvailable,
             BackendSpecific { err } => {
                 tracing::debug!(?err, "Backend specific cpal stream error");
-                AudioRuntimeError::Other(err.description)
+                AudioError::Other(anyhow::anyhow!(err.description))
             }
         }
     }

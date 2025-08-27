@@ -7,8 +7,8 @@ use thiserror::Error;
 pub enum Error {
     #[error("Unauthorized")]
     Unauthorized,
-    #[error("Audio device error: {0}")]
-    AudioDevice(#[from] Box<vacs_audio::error::AudioStartError>),
+    #[error(transparent)]
+    AudioDevice(#[from] Box<vacs_audio::error::AudioError>),
     #[error("Network error: {0}")]
     Network(String),
     #[error("Signaling error: {0}")]
@@ -21,8 +21,8 @@ pub enum Error {
     Other(#[from] Box<anyhow::Error>),
 }
 
-impl From<vacs_audio::error::AudioStartError> for Error {
-    fn from(err: vacs_audio::error::AudioStartError) -> Self {
+impl From<vacs_audio::error::AudioError> for Error {
+    fn from(err: vacs_audio::error::AudioError) -> Self {
         Error::AudioDevice(Box::new(err))
     }
 }

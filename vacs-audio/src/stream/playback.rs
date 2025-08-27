@@ -1,9 +1,8 @@
 use crate::device::StreamDevice;
-use crate::error::AudioStartError;
+use crate::error::AudioError;
 use crate::mixer::Mixer;
 use crate::sources::{AudioSource, AudioSourceId};
 use crate::DeviceType;
-use anyhow::Result;
 use cpal::traits::StreamTrait;
 use parking_lot::Mutex;
 use ringbuf::consumer::Consumer;
@@ -29,7 +28,7 @@ pub struct PlaybackStream {
 }
 
 impl PlaybackStream {
-    pub fn start(device: StreamDevice) -> Result<Self, AudioStartError> {
+    pub fn start(device: StreamDevice) -> Result<Self, AudioError> {
         tracing::debug!("Starting input capture stream");
         debug_assert!(matches!(device.device_type, DeviceType::Output));
 
@@ -176,7 +175,7 @@ impl PlaybackStream {
         }
     }
 
-    pub fn resampler(&self) -> Result<Option<SincFixedIn<f32>>> {
+    pub fn resampler(&self) -> Result<Option<SincFixedIn<f32>>, AudioError> {
         self.device.resampler()
     }
 

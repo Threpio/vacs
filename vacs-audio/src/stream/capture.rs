@@ -1,8 +1,7 @@
 use crate::device::StreamDevice;
 use crate::dsp::downmix_interleaved_to_mono;
-use crate::error::AudioStartError;
+use crate::error::AudioError;
 use crate::{DeviceType, EncodedAudioFrame, FRAME_SIZE, TARGET_SAMPLE_RATE};
-use anyhow::{Context, Result};
 use bytes::Bytes;
 use cpal::traits::StreamTrait;
 use parking_lot::lock_api::Mutex;
@@ -15,6 +14,7 @@ use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use anyhow::Context;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -44,7 +44,7 @@ impl CaptureStream {
         tx: mpsc::Sender<EncodedAudioFrame>,
         mut volume: f32,
         amp: f32,
-    ) -> Result<Self, AudioStartError> {
+    ) -> Result<Self, AudioError> {
         tracing::debug!("Starting input capture stream");
         debug_assert!(matches!(device.device_type, DeviceType::Input));
 
@@ -205,7 +205,7 @@ impl CaptureStream {
         emit: Box<dyn Fn(InputLevel) + Send>,
         mut volume: f32,
         amp: f32,
-    ) -> Result<Self, AudioStartError> {
+    ) -> Result<Self, AudioError> {
         tracing::debug!("Starting input capture stream level meter");
 
         let mut level_meter = InputLevelMeter::new(device.sample_rate() as f32);
@@ -291,7 +291,7 @@ struct OpusFramer {
 }
 
 impl OpusFramer {
-    fn new(tx: mpsc::Sender<EncodedAudioFrame>) -> Result<Self> {
+    fn new(tx: mpsc::Sender<EncodedAudioFrame>) -> Result<Self, AudioError> {
         let mut encoder = opus::Encoder::new(
             TARGET_SAMPLE_RATE,
             opus::Channels::Mono,

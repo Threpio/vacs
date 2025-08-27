@@ -6,7 +6,7 @@ use crate::audio::{AudioDevices, AudioHosts, AudioVolumes, VolumeType};
 use crate::config::{Persistable, PersistedAudioConfig, AUDIO_SETTINGS_FILE_NAME};
 use crate::error::Error;
 use tauri::{AppHandle, Emitter, Manager, State};
-use vacs_audio::error::AudioStartError;
+use vacs_audio::error::AudioError;
 use vacs_audio::{DeviceSelector, DeviceType};
 
 #[tauri::command]
@@ -44,7 +44,7 @@ pub async fn audio_set_host(
     let mut state = app_state.lock().await;
 
     if state.active_call_peer_id().is_some() {
-        return Err(Error::AudioDevice(Box::new(AudioStartError::Other(
+        return Err(Error::AudioDevice(Box::new(AudioError::Other(
             anyhow::anyhow!("Cannot set audio host while call is active"),
         ))));
     }
@@ -116,7 +116,7 @@ pub async fn audio_set_device(
     let mut state = app_state.lock().await;
 
     if state.audio_manager().is_input_device_attached() {
-        return Err(Error::AudioDevice(Box::new(AudioStartError::Other(
+        return Err(Error::AudioDevice(Box::new(AudioError::Other(
             anyhow::anyhow!("Cannot set audio device while call is active"),
         ))));
     }
@@ -252,7 +252,7 @@ pub async fn audio_start_input_level_meter(
     let audio_config = &state.config.audio.clone();
 
     if state.audio_manager().is_input_device_attached() {
-        return Err(Error::AudioDevice(Box::new(AudioStartError::Other(
+        return Err(Error::AudioDevice(Box::new(AudioError::Other(
             anyhow::anyhow!("Cannot start input level meter while call is active"),
         ))));
     }
