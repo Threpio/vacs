@@ -11,6 +11,7 @@ use ringbuf::HeapRb;
 use rubato::SincFixedIn;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{atomic, Arc};
+use tokio::sync::mpsc;
 use tracing::instrument;
 
 type MixerOp = Box<dyn FnOnce(&mut Mixer) + Send>;
@@ -27,7 +28,11 @@ pub struct PlaybackStream {
 }
 
 impl PlaybackStream {
-    pub fn start(device: StreamDevice) -> Result<Self, AudioError> {
+    #[instrument(level = "debug", skip(error_tx), err)]
+    pub fn start(
+        device: StreamDevice,
+        error_tx: mpsc::Sender<AudioError>,
+    ) -> Result<Self, AudioError> {
         tracing::debug!("Starting input capture stream");
         debug_assert!(matches!(device.device_type, DeviceType::Output));
 
@@ -48,9 +53,11 @@ impl PlaybackStream {
                 }
                 mixer.mix(output);
             },
-            |err| {
-                tracing::warn!(?err, "CPAL output stream error");
-                // TODO: Handle DeviceNotAvailable error (device disconencted during playback)
+            move |err| {
+                tracing::error!(?err, "CPAL playback stream error");
+                if let Err(err) = error_tx.try_send(err.into()) {
+                    tracing::warn!(?err, "Failed to send playback stream error");
+                }
             },
         )?;
 
@@ -181,7 +188,7 @@ impl PlaybackStream {
     pub fn channels(&self) -> u16 {
         self.device.channels()
     }
-    
+
     pub fn device_name(&self) -> String {
         self.device.name()
     }

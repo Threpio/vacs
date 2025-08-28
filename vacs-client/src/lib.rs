@@ -1,17 +1,17 @@
 mod app;
 mod audio;
 mod auth;
+mod build;
 mod config;
 mod error;
 mod secrets;
 mod signaling;
-mod build;
 
 use crate::app::state::{AppState, AppStateInner};
+use crate::build::VersionInfo;
 use crate::error::FrontendError;
 use tauri::{Emitter, Manager, RunEvent};
 use tokio::sync::Mutex;
-use crate::build::VersionInfo;
 
 pub fn run() {
     tauri::Builder::default()
@@ -46,9 +46,7 @@ pub fn run() {
 
             log::info!("{:?}", VersionInfo::gather());
 
-            let config_dir = app.path().app_config_dir()?;
-            let data_dir = app.path().app_data_dir()?;
-            app.manage(Mutex::new(AppStateInner::new(config_dir, data_dir)?));
+            app.manage(Mutex::new(AppStateInner::new(app.handle())?));
 
             Ok(())
         })

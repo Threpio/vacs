@@ -1,9 +1,9 @@
-use crate::app::state::AppState;
 use crate::app::state::audio::AppStateAudioExt;
 use crate::app::state::webrtc::AppStateWebrtcExt;
+use crate::app::state::AppState;
 use crate::audio::manager::SourceType;
 use crate::audio::{AudioDevices, AudioHosts, AudioVolumes, VolumeType};
-use crate::config::{AUDIO_SETTINGS_FILE_NAME, Persistable, PersistedAudioConfig};
+use crate::config::{Persistable, PersistedAudioConfig, AUDIO_SETTINGS_FILE_NAME};
 use crate::error::Error;
 use tauri::{AppHandle, Emitter, Manager, State};
 use vacs_audio::device::{DeviceSelector, DeviceType};
@@ -145,7 +145,9 @@ pub async fn audio_set_device(
                 let mut audio_config = state.config.audio.clone();
                 audio_config.output_device_name = device_name;
 
-                state.audio_manager().switch_output_device(&audio_config)?;
+                state
+                    .audio_manager()
+                    .switch_output_device(app.clone(), &audio_config, false)?;
 
                 state.config.audio = audio_config;
             }
@@ -268,6 +270,7 @@ pub async fn audio_start_input_level_meter(
     }
 
     state.audio_manager().attach_input_level_meter(
+        app.clone(),
         audio_config,
         Box::new(move |level| {
             app.emit("audio:input-level", level).ok();

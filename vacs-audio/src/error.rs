@@ -20,18 +20,18 @@ impl From<BuildStreamError> for AudioError {
             DeviceNotAvailable => AudioError::DeviceNotAvailable,
             StreamConfigNotSupported | InvalidArgument => AudioError::UnsupportedConfig,
             StreamIdOverflow => AudioError::Other(anyhow::anyhow!("Stream ID overflow")),
-            BackendSpecific { err } => {
-                match err.description.as_str() {
-                    "0x8889000A" => {
-                        tracing::info!("Received WASAPI error 0x8889000A: device is busy or in use in exclusive mode");
-                        AudioError::DeviceBusyOrDenied
-                    }
-                    description => {
-                        tracing::warn!(?description, "Backend specific cpal build stream error");
-                        AudioError::Other(anyhow::anyhow!(description.to_string()))
-                    },
+            BackendSpecific { err } => match err.description.as_str() {
+                "0x8889000A" => {
+                    tracing::info!(
+                        "Received WASAPI error 0x8889000A: device is busy or in use in exclusive mode"
+                    );
+                    AudioError::DeviceBusyOrDenied
                 }
-            }
+                description => {
+                    tracing::warn!(?description, "Backend specific cpal build stream error");
+                    AudioError::Other(anyhow::anyhow!(description.to_string()))
+                }
+            },
         }
     }
 }

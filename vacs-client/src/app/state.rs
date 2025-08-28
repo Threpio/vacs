@@ -13,9 +13,9 @@ use crate::secrets::cookies::SecureCookieStore;
 use crate::signaling::Connection;
 use anyhow::Context;
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+use tauri::{AppHandle, Manager};
 use tokio::sync::Mutex;
 
 pub struct AppStateInner {
@@ -33,16 +33,17 @@ pub struct AppStateInner {
 pub type AppState = Mutex<AppStateInner>;
 
 impl AppStateInner {
-    pub fn new(config_dir: PathBuf, data_dir: PathBuf) -> anyhow::Result<Self> {
+    pub fn new(app: &AppHandle) -> anyhow::Result<Self> {
+        let config_dir = app.path().app_config_dir()?;
+        let data_dir = app.path().app_data_dir()?;
+
         let cookie_store = Arc::new(
             SecureCookieStore::new(data_dir.join(".cookies"))
                 .context("Failed to create secure cookie store")?,
         );
         let config = AppConfig::parse(&config_dir)?;
 
-        // TODO handle is_fallback and update config accordingly
-
-        let audio_manager = match AudioManager::new(&config.audio) {
+        let audio_manager = match AudioManager::new(app.clone(), &config.audio) {
             Ok(audio_manager) => audio_manager,
             Err(err) => {
                 log::warn!(
@@ -52,7 +53,7 @@ impl AppStateInner {
                 let mut audio_config = config.audio.clone();
                 audio_config.output_device_name = None;
 
-                let audio_manager = AudioManager::new(&audio_config)?;
+                let audio_manager = AudioManager::new(app.clone(), &audio_config)?;
 
                 log::info!(
                     "Audio manager initialized with fallback default output device. Persisting new audio config."

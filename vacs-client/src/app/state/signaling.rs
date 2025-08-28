@@ -27,7 +27,9 @@ impl AppStateSignalingExt for AppStateInner {
 
         if self.connection.is_logged_in() {
             log::info!("Already connected and logged in with signaling server");
-            return Err(Error::Signaling(Box::from(SignalingError::LoginError(LoginFailureReason::DuplicateId))));
+            return Err(Error::Signaling(Box::from(SignalingError::LoginError(
+                LoginFailureReason::DuplicateId,
+            ))));
         }
 
         log::debug!("Retrieving WebSocket auth token");
@@ -88,6 +90,7 @@ impl AppStateSignalingExt for AppStateInner {
         let peer_ids = self.held_calls.keys().cloned().collect::<Vec<_>>();
         for peer_id in peer_ids {
             self.end_call(&peer_id).await;
+            app.emit("signaling:call-end", &peer_id).ok();
         }
 
         self.connection.disconnect();

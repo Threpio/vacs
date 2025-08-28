@@ -5,6 +5,7 @@ use crate::config::ENCODED_AUDIO_FRAME_BUFFER_SIZE;
 use crate::error::Error;
 use anyhow::Context;
 use serde_json::Value;
+use std::fmt::{Debug, Formatter};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::mpsc;
@@ -15,6 +16,14 @@ use vacs_webrtc::{Peer, PeerConnectionState, PeerEvent};
 pub struct Call {
     pub(super) peer_id: String,
     peer: Peer,
+}
+
+impl Debug for Call {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Call")
+            .field("peer_id", &self.peer_id)
+            .finish()
+    }
 }
 
 pub trait AppStateWebrtcExt: sealed::Sealed {
@@ -75,7 +84,17 @@ impl AppStateWebrtcExt for AppStateInner {
 
                                 let app_state = app.state::<AppState>();
                                 let mut state = app_state.lock().await;
-                                state.end_call(&peer_id_clone).await;
+
+                                // TODO detach webrtc sender and receiver so call can be reattached properly
+                                if let Some(call) = &mut state.active_call
+                                    && call.peer_id == peer_id_clone
+                                {
+                                    state.audio_manager().detach_call_output();
+                                    state.audio_manager().detach_input_device();
+                                }
+
+                                // TODO update status indicator
+                                app.emit("webrtc:call-disconnected", &peer_id_clone).ok();
                             }
                             PeerConnectionState::Failed => {
                                 log::info!("Failed to connect to peer");
@@ -94,6 +113,7 @@ impl AppStateWebrtcExt for AppStateInner {
                                 let app_state = app.state::<AppState>();
                                 let mut state = app_state.lock().await;
                                 state.end_call(&peer_id_clone).await;
+                                app.emit("signaling:call-end", &peer_id_clone).ok();
                             }
                             state => {
                                 log::trace!("Received connection state: {state:?}");
@@ -167,6 +187,10 @@ impl AppStateWebrtcExt for AppStateInner {
     }
 
     async fn end_call(&mut self, peer_id: &str) -> bool {
+        log::debug!(
+            "Ending call with peer {peer_id} (active: {:?})",
+            self.active_call.as_ref()
+        );
         let res = if let Some(call) = &mut self.active_call
             && call.peer_id == peer_id
         {
@@ -239,16 +263,18 @@ impl AppStateInner {
             ) {
                 log::warn!("Failed to attach call to audio manager: {err:?}");
                 self.end_call(peer_id).await;
+                app.emit("signaling:call-end", &peer_id).ok();
                 return;
             }
 
             log::debug!("Attaching input device to audio manager");
-            if let Err(err) = self
-                .audio_manager()
-                .attach_input_device(&audio_config, input_tx)
+            if let Err(err) =
+                self.audio_manager()
+                    .attach_input_device(app.clone(), &audio_config, input_tx)
             {
                 log::warn!("Failed to attach input device to audio manager: {err:?}");
                 self.end_call(peer_id).await;
+                app.emit("signaling:call-end", &peer_id).ok();
                 return;
             }
 

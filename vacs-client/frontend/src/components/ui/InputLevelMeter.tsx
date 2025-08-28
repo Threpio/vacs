@@ -1,4 +1,4 @@
-import {useState} from "preact/hooks";
+import {useEffect, useState} from "preact/hooks";
 import {listen, UnlistenFn} from "@tauri-apps/api/event";
 import {InputLevel} from "../../types/audio.ts";
 import {clsx} from "clsx";
@@ -30,6 +30,24 @@ function InputLevelMeter() {
             void invokeSafe("audio_start_input_level_meter");
         }
     };
+
+    useEffect(() => {
+        const stopLevelMeter = async () => {
+            console.log("Stopping level meter", unlistenFn);
+            if (unlistenFn !== undefined) {
+                (await unlistenFn)();
+                setUnlistenFn(undefined);
+                setLevel(undefined);
+            }
+        };
+
+        const unlisten = listen("audio:stop-input-level-meter", stopLevelMeter);
+
+        return () => {
+            unlisten.then(f => f());
+        }
+    }, []);
+
 
     return (
         <div className="w-4 h-full shrink-0 pb-2 pt-24">

@@ -2,6 +2,7 @@ use crate::device::{DeviceType, StreamDevice};
 use crate::dsp::downmix_interleaved_to_mono;
 use crate::error::AudioError;
 use crate::{EncodedAudioFrame, FRAME_SIZE, TARGET_SAMPLE_RATE};
+use anyhow::Context;
 use bytes::Bytes;
 use cpal::traits::StreamTrait;
 use parking_lot::lock_api::Mutex;
@@ -14,7 +15,6 @@ use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use anyhow::Context;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -38,12 +38,13 @@ pub struct CaptureStream {
 }
 
 impl CaptureStream {
-    #[instrument(level = "debug", skip(tx), err)]
+    #[instrument(level = "debug", skip(tx, error_tx), err)]
     pub fn start(
         device: StreamDevice,
         tx: mpsc::Sender<EncodedAudioFrame>,
         mut volume: f32,
         amp: f32,
+        error_tx: mpsc::Sender<AudioError>,
     ) -> Result<Self, AudioError> {
         tracing::debug!("Starting input capture stream");
         debug_assert!(matches!(device.device_type, DeviceType::Input));
@@ -93,8 +94,11 @@ impl CaptureStream {
                     tracing::warn!(?overflows, "Dropped input samples during this callback");
                 }
             },
-            |err| {
-                tracing::warn!(?err, "CPAL capture stream error");
+            move |err| {
+                tracing::error!(?err, "CPAL capture stream error");
+                if let Err(err) = error_tx.try_send(err.into()) {
+                    tracing::warn!(?err, "Failed to send capture stream error");
+                }
             },
         )?;
 
@@ -199,12 +203,13 @@ impl CaptureStream {
         })
     }
 
-    #[instrument(level = "debug", skip(emit), err)]
+    #[instrument(level = "debug", skip(emit, error_tx), err)]
     pub fn start_level_meter(
         device: StreamDevice,
         emit: Box<dyn Fn(InputLevel) + Send>,
         mut volume: f32,
         amp: f32,
+        error_tx: mpsc::Sender<AudioError>,
     ) -> Result<Self, AudioError> {
         tracing::debug!("Starting input capture stream level meter");
 
@@ -230,8 +235,11 @@ impl CaptureStream {
                     }
                 }
             },
-            |err| {
-                tracing::warn!(?err, "CPAL input stream error");
+            move |err| {
+                tracing::error!(?err, "CPAL capture stream level meter error");
+                if let Err(err) = error_tx.try_send(err.into()) {
+                    tracing::warn!(?err, "Failed to send capture stream level meter error");
+                }
             },
         )?;
 

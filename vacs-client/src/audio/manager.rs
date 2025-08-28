@@ -1,7 +1,13 @@
+use crate::app::state::audio::AppStateAudioExt;
+use crate::app::state::signaling::AppStateSignalingExt;
+use crate::app::state::webrtc::AppStateWebrtcExt;
+use crate::app::state::AppState;
 use crate::config::AudioConfig;
-use crate::error::Error;
+use crate::error::{Error, FrontendError};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Duration;
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::mpsc;
 use vacs_audio::device::{DeviceSelector, DeviceType};
 use vacs_audio::error::AudioError;
@@ -11,6 +17,9 @@ use vacs_audio::sources::AudioSourceId;
 use vacs_audio::stream::capture::{CaptureStream, InputLevel};
 use vacs_audio::stream::playback::PlaybackStream;
 use vacs_audio::EncodedAudioFrame;
+use vacs_protocol::ws::SignalingMessage;
+
+const AUDIO_STREAM_ERROR_CHANNEL_SIZE: usize = 32;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum SourceType {
@@ -79,8 +88,8 @@ pub struct AudioManager {
 }
 
 impl AudioManager {
-    pub fn new(audio_config: &AudioConfig) -> Result<Self, Error> {
-        let (output, source_ids) = Self::create_playback_stream(audio_config)?;
+    pub fn new(app: AppHandle, audio_config: &AudioConfig) -> Result<Self, Error> {
+        let (output, source_ids) = Self::create_playback_stream(app, audio_config, false)?;
 
         Ok(Self {
             output,
@@ -93,8 +102,13 @@ impl AudioManager {
         self.output.device_name()
     }
 
-    pub fn switch_output_device(&mut self, audio_config: &AudioConfig) -> Result<(), Error> {
-        let (output, source_ids) = Self::create_playback_stream(audio_config)?;
+    pub fn switch_output_device(
+        &mut self,
+        app: AppHandle,
+        audio_config: &AudioConfig,
+        restarting: bool,
+    ) -> Result<(), Error> {
+        let (output, source_ids) = Self::create_playback_stream(app, audio_config, restarting)?;
         self.output = output;
         self.source_ids = source_ids;
         Ok(())
@@ -102,45 +116,99 @@ impl AudioManager {
 
     pub fn attach_input_device(
         &mut self,
+        app: AppHandle,
         audio_config: &AudioConfig,
         tx: mpsc::Sender<EncodedAudioFrame>,
     ) -> Result<(), Error> {
-        // TODO handle is_fallback?
-        let (device, _) = DeviceSelector::open(
+        let (device, is_fallback) = DeviceSelector::open(
             DeviceType::Input,
             audio_config.host_name.as_deref(),
             audio_config.input_device_name.as_deref(),
         )?;
-        self.input = Some(
-            CaptureStream::start(
-                device,
-                tx,
-                audio_config.input_device_volume,
-                audio_config.input_device_volume_amp,
-            )?,
-        );
+        if is_fallback {
+            app.emit::<FrontendError>("error", Error::AudioDevice(Box::from(AudioError::Other(
+                anyhow::anyhow!("Selected audio input device is not available, falling back to next best option. End your call to check your audio settings.")
+            ))).into()).ok();
+        }
+
+        let (error_tx, mut error_rx) = mpsc::channel(AUDIO_STREAM_ERROR_CHANNEL_SIZE);
+
+        tauri::async_runtime::spawn(async move {
+            while let Some(err) = error_rx.recv().await {
+                let state = app.state::<AppState>();
+                let mut state = state.lock().await;
+
+                if let Some(peer_id) = state.active_call_peer_id().cloned() {
+                    log::debug!(
+                        "Ending active call with peer {peer_id} due to capture stream error"
+                    );
+
+                    state.end_call(&peer_id).await;
+                    if let Err(err) = state
+                        .send_signaling_message(SignalingMessage::CallEnd {
+                            peer_id: peer_id.clone(),
+                        })
+                        .await
+                    {
+                        log::warn!("Failed to send call end signaling message: {:?}", err);
+                    };
+                    state.set_outgoing_call_peer_id(None);
+                    state.audio_manager().stop(SourceType::Ringback);
+
+                    app.emit("signaling:call-end", &peer_id).ok();
+                }
+
+                app.emit::<FrontendError>("error", Error::from(err).into())
+                    .ok();
+            }
+            log::debug!("Playback capture error receiver closed");
+        });
+
+        self.input = Some(CaptureStream::start(
+            device,
+            tx,
+            audio_config.input_device_volume,
+            audio_config.input_device_volume_amp,
+            error_tx,
+        )?);
         Ok(())
     }
 
     pub fn attach_input_level_meter(
         &mut self,
+        app: AppHandle,
         audio_config: &AudioConfig,
         emit: Box<dyn Fn(InputLevel) + Send>,
     ) -> Result<(), Error> {
-        // TODO handle is_fallback?
         let (device, _) = DeviceSelector::open(
             DeviceType::Input,
             audio_config.host_name.as_deref(),
             audio_config.input_device_name.as_deref(),
         )?;
-        self.input = Some(
-            CaptureStream::start_level_meter(
-                device,
-                emit,
-                audio_config.input_device_volume,
-                audio_config.input_device_volume_amp,
-            )?,
-        );
+
+        let (error_tx, mut error_rx) = mpsc::channel(AUDIO_STREAM_ERROR_CHANNEL_SIZE);
+
+        tauri::async_runtime::spawn(async move {
+            while let Some(err) = error_rx.recv().await {
+                let state = app.state::<AppState>();
+                let mut state = state.lock().await;
+
+                state.audio_manager().detach_input_device();
+
+                app.emit("audio:stop-input-level-meter", Value::Null).ok();
+                app.emit::<FrontendError>("error", Error::from(err).into())
+                    .ok();
+            }
+            log::debug!("Playback capture error receiver closed");
+        });
+
+        self.input = Some(CaptureStream::start_level_meter(
+            device,
+            emit,
+            audio_config.input_device_volume,
+            audio_config.input_device_volume_amp,
+            error_tx,
+        )?);
         Ok(())
     }
 
@@ -241,20 +309,86 @@ impl AudioManager {
     }
 
     fn create_playback_stream(
+        app: AppHandle,
         audio_config: &AudioConfig,
+        restarting: bool,
     ) -> Result<(PlaybackStream, HashMap<SourceType, AudioSourceId>), Error> {
-        // TODO: handle is_fallback?
-        let (output_device, _) = DeviceSelector::open(
+        let (output_device, is_fallback) = DeviceSelector::open(
             DeviceType::Output,
             audio_config.host_name.as_deref(),
             audio_config.output_device_name.as_deref(),
         )?;
+        if is_fallback {
+            app.emit::<FrontendError>("error", Error::AudioDevice(Box::from(AudioError::Other(
+                anyhow::anyhow!("Selected audio output device is not available, falling back to next best option. Check your audio settings.")
+            ))).into()).ok();
+        }
 
         let sample_rate = output_device.sample_rate() as f32;
         let channels = output_device.channels() as usize;
 
-        let mut output =
-            PlaybackStream::start(output_device)?;
+        let (error_tx, mut error_rx) = mpsc::channel(AUDIO_STREAM_ERROR_CHANNEL_SIZE);
+        let mut output = PlaybackStream::start(output_device, error_tx)?;
+
+        let audio_config_clone = audio_config.clone();
+        tauri::async_runtime::spawn(async move {
+            while let Some(err) = error_rx.recv().await {
+                let state = app.state::<AppState>();
+                let mut state = state.lock().await;
+
+                if restarting {
+                    log::error!(
+                        "Restarting output device after failure errored, cannot recover: {:?}",
+                        err
+                    );
+                    app.emit::<FrontendError>("error", Error::AudioDevice(Box::from(AudioError::Other(
+                        anyhow::anyhow!("Audio output device failed to start irrecoverably, check your audio settings and restart the application.")
+                    ))).into()).ok();
+                } else {
+                    if let Some(peer_id) = state.active_call_peer_id().cloned() {
+                        log::debug!(
+                            "Ending active call with peer {peer_id} due to playback stream error"
+                        );
+
+                        state.end_call(&peer_id).await;
+                        if let Err(err) = state
+                            .send_signaling_message(SignalingMessage::CallEnd {
+                                peer_id: peer_id.clone(),
+                            })
+                            .await
+                        {
+                            log::warn!("Failed to send call end signaling message: {:?}", err);
+                        };
+                        state.set_outgoing_call_peer_id(None);
+                        state.audio_manager().stop(SourceType::Ringback);
+
+                        app.emit("signaling:call-end", &peer_id).ok();
+                    }
+
+                    if let Err(err) = state.audio_manager().switch_output_device(
+                        app.clone(),
+                        &audio_config_clone,
+                        true,
+                    ) {
+                        log::error!("Failed to switch output device after failure: {:?}", err);
+
+                        app.emit::<FrontendError>("error", Error::AudioDevice(Box::from(AudioError::Other(
+                            anyhow::anyhow!("Audio output device failed to start irrecoverably, check your audio settings and restart the application.")
+                        ))).into()).ok();
+
+                        return;
+                    } else {
+                        log::info!(
+                            "Successfully restarted output device after failure, continuing playback"
+                        );
+                    }
+
+                    app.emit::<FrontendError>("error", Error::from(err).into())
+                        .ok();
+                }
+            }
+            log::debug!("Playback stream error receiver closed");
+        });
 
         let mut source_ids = HashMap::new();
         source_ids.insert(
