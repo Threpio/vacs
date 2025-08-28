@@ -44,6 +44,8 @@
 # *.iml
 # *.ipr
 
+.idea/**/statistic.xml
+
 # CMake
 cmake-build-*/
 

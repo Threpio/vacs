@@ -1,15 +1,12 @@
 use crate::app::state::audio::AppStateAudioExt;
 use crate::app::state::webrtc::AppStateWebrtcExt;
-use crate::app::state::{AppState, AppStateInner};
+use crate::app::state::AppState;
 use crate::audio::manager::SourceType;
 use crate::audio::{AudioDevices, AudioHosts, AudioVolumes, VolumeType};
 use crate::config::{AUDIO_SETTINGS_FILE_NAME, Persistable, PersistedAudioConfig};
 use crate::error::Error;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
-use tokio::sync::MutexGuard;
-use tokio::time::Timeout;
-use tokio::time::error::Elapsed;
 use vacs_audio::device::{DeviceSelector, DeviceType};
 use vacs_audio::error::AudioError;
 

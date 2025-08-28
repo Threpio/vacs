@@ -2,7 +2,7 @@ import Button from "./Button.tsx";
 import {useCallStore} from "../../stores/call-store.ts";
 import {useAsyncDebounce} from "../../hooks/debounce-hook.ts";
 import {invokeSafe} from "../../error.ts";
-import {useState} from "preact/hooks";
+import {useEffect, useState} from "preact/hooks";
 
 function RadioPrioButton() {
     const [muted, setMuted] = useState<boolean>(false);
@@ -13,9 +13,15 @@ function RadioPrioButton() {
         setMuted(muted => !muted);
     });
 
+    useEffect(() => {
+        if (callDisplayType !== "accepted") {
+            setMuted(false);
+        }
+    }, [callDisplayType]);
+
     return (
         <Button
-            color={muted ? "blue" : "cyan"} className="text-lg w-46" disabled={!(callDisplayType === "accepted")}
+            color={muted ? "blue" : "cyan"} className="text-lg w-46" disabled={callDisplayType !== "accepted"}
             onClick={handleOnClick}
         >
             <p>RADIO<br/>PRIO</p>
