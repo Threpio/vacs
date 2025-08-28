@@ -21,7 +21,7 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    pub fn parse(config_dir: &Path) -> anyhow::Result<AppConfig> {
+    pub fn parse(config_dir: &Path) -> anyhow::Result<Self> {
         Config::builder()
             .add_source(Config::try_from(&AppConfig::default())?)
             .add_source(
