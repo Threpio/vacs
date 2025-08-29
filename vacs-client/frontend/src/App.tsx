@@ -24,6 +24,7 @@ import {useSignalingStore} from "./stores/signaling-store.ts";
 import PhoneButton from "./components/ui/PhoneButton.tsx";
 import RadioPrioButton from "./components/ui/RadioPrioButton.tsx";
 import EndButton from "./components/ui/EndButton.tsx";
+import {setupWebrtcListeners} from "./listeners/webrtc-listener.ts";
 
 function App() {
     const connected = useSignalingStore(state => state.connected);
@@ -32,9 +33,11 @@ function App() {
     useEffect(() => {
         void invoke("app_frontend_ready");
 
+        // TODO handle returned cleanup functions
         setupErrorListener();
         setupAuthListeners();
         setupSignalingListeners();
+        setupWebrtcListeners();
 
         void invokeSafe("auth_check_session");
     }, []);

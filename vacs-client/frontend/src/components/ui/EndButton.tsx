@@ -6,7 +6,7 @@ import {useAsyncDebounce} from "../../hooks/debounce-hook.ts";
 
 function EndButton() {
     const callDisplay = useCallStore(state => state.callDisplay);
-    const {endCall, dismissRejectedPeer} = useCallStore(state => state.actions);
+    const {endCall, dismissRejectedPeer, dismissErrorPeer} = useCallStore(state => state.actions);
 
     const endAnyCall = useAsyncDebounce(async () => {
         if (callDisplay?.type === "accepted" || callDisplay?.type === "outgoing") {
@@ -16,6 +16,8 @@ function EndButton() {
             } catch {}
         } else if (callDisplay?.type === "rejected") {
             dismissRejectedPeer();
+        } else if (callDisplay?.type === "error") {
+            dismissErrorPeer();
         }
     });
 

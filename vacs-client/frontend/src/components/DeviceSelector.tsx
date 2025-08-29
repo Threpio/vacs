@@ -22,8 +22,6 @@ function DeviceSelector(props: DeviceSelectorProps) {
                 deviceType: props.deviceType
             });
 
-            console.log(audioDevices);
-
             const isFallback = audioDevices.preferred.length !== 0 && audioDevices.preferred !== audioDevices.picked;
             const defaultDevice = {value: "", text: `Default (${audioDevices.default})`, className: "text-initial"};
 

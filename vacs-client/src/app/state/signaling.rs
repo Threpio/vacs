@@ -84,8 +84,8 @@ impl AppStateSignalingExt for AppStateInner {
         self.audio_manager.detach_call_output();
         self.audio_manager.detach_input_device();
 
-        if let Some(call) = self.active_call.take() {
-            self.end_call(&call.peer_id).await;
+        if let Some(peer_id) = self.active_call_peer_id().cloned() {
+            self.end_call(&peer_id).await;
         };
         let peer_ids = self.held_calls.keys().cloned().collect::<Vec<_>>();
         for peer_id in peer_ids {

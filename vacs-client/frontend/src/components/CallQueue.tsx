@@ -6,7 +6,7 @@ function CallQueue() {
     const blink = useCallStore(state => state.blink);
     const callDisplay = useCallStore(state => state.callDisplay);
     const incomingCalls = useCallStore(state => state.incomingCalls);
-    const {acceptCall, endCall, dismissRejectedPeer} = useCallStore(state => state.actions);
+    const {acceptCall, endCall, dismissRejectedPeer, dismissErrorPeer} = useCallStore(state => state.actions);
 
     const handleCallDisplayClick = async (peerId: string) => {
         if (callDisplay?.type === "accepted" || callDisplay?.type === "outgoing") {
@@ -16,6 +16,8 @@ function CallQueue() {
             } catch {}
         } else if (callDisplay?.type === "rejected") {
             dismissRejectedPeer();
+        } else if (callDisplay?.type === "error") {
+            dismissErrorPeer();
         }
     };
 
@@ -29,11 +31,13 @@ function CallQueue() {
         } catch {}
     }
 
+    const cdColor = callDisplay?.type === "accepted" ? "green" : callDisplay?.type === "rejected" && blink ? "green" : callDisplay?.type === "error" && blink ? "red" : "gray";
+
     return (
         <div className="flex flex-col-reverse gap-2.5 pt-3 pr-[1px] overflow-y-auto" style={{scrollbarWidth: "none"}}>
             {/*Call Display*/}
             {callDisplay !== undefined ? (
-                <Button color={callDisplay.type === "accepted" ? "green" : callDisplay.type === "rejected" && blink ? "green" : "gray"}
+                <Button color={cdColor}
                         highlight={callDisplay.type === "outgoing" || callDisplay.type === "rejected" ? "green" : undefined}
                         softDisabled={true}
                         onClick={() => handleCallDisplayClick(callDisplay.peerId)}

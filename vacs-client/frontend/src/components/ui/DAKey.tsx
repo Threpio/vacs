@@ -17,6 +17,7 @@ function DAKey({client}: DAKeyProps) {
         acceptCall,
         endCall,
         dismissRejectedPeer,
+        dismissErrorPeer,
         removePeer
     } = useCallStore(state => state.actions);
 
@@ -24,6 +25,7 @@ function DAKey({client}: DAKeyProps) {
     const beingCalled = callDisplay?.type === "outgoing" && callDisplay.peerId === client.id;
     const inCall = callDisplay?.type === "accepted" && callDisplay.peerId === client.id;
     const isRejected = callDisplay?.type === "rejected" && callDisplay.peerId === client.id;
+    const isError = callDisplay?.type === "error" && callDisplay.peerId === client.id;
 
     const handleClick = useAsyncDebounce(async () => {
         if (isCalling) {
@@ -42,6 +44,8 @@ function DAKey({client}: DAKeyProps) {
             }
         } else if (isRejected) {
             dismissRejectedPeer();
+        } else if (isError) {
+            dismissErrorPeer();
         } else if (callDisplay === undefined) {
             try {
                 setOutgoingCall(client.id);
@@ -53,7 +57,7 @@ function DAKey({client}: DAKeyProps) {
     });
 
     return (
-        <Button color={inCall ? "green" : (isCalling || isRejected) && blink ? "green" : "gray"}
+        <Button color={inCall ? "green" : (isCalling || isRejected) && blink ? "green" : isError && blink ? "red" : "gray"}
                 className="w-25 h-[calc((100%-3.75rem)/6)] rounded !leading-4.5 text-lg"
                 highlight={beingCalled || isRejected ? "green" : undefined}
                 onClick={handleClick}

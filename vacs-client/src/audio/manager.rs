@@ -17,7 +17,7 @@ use vacs_audio::sources::AudioSourceId;
 use vacs_audio::stream::capture::{CaptureStream, InputLevel};
 use vacs_audio::stream::playback::PlaybackStream;
 use vacs_audio::EncodedAudioFrame;
-use vacs_protocol::ws::SignalingMessage;
+use vacs_protocol::ws::{CallErrorReason, SignalingMessage};
 
 const AUDIO_STREAM_ERROR_CHANNEL_SIZE: usize = 32;
 
@@ -145,8 +145,9 @@ impl AudioManager {
 
                     state.end_call(&peer_id).await;
                     if let Err(err) = state
-                        .send_signaling_message(SignalingMessage::CallEnd {
+                        .send_signaling_message(SignalingMessage::CallError {
                             peer_id: peer_id.clone(),
+                            reason: CallErrorReason::AudioFailure,
                         })
                         .await
                     {
@@ -352,8 +353,9 @@ impl AudioManager {
 
                         state.end_call(&peer_id).await;
                         if let Err(err) = state
-                            .send_signaling_message(SignalingMessage::CallEnd {
+                            .send_signaling_message(SignalingMessage::CallError {
                                 peer_id: peer_id.clone(),
+                                reason: CallErrorReason::AudioFailure
                             })
                             .await
                         {

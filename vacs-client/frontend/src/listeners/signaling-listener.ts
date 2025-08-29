@@ -45,8 +45,8 @@ export function setupSignalingListeners() {
                 rejectPeer(event.payload);
             }),
             listen<string>("signaling:peer-not-found", (event) => {
-                removePeer(event.payload);
                 removeClient(event.payload);
+                removePeer(event.payload);
                 openErrorOverlay("Peer not found", `Can not find peer with CID ${event.payload}`, 5000);
             }),
         );

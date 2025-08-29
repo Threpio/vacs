@@ -4,7 +4,6 @@ use crate::app::state::{sealed, AppState, AppStateInner};
 use crate::config::ENCODED_AUDIO_FRAME_BUFFER_SIZE;
 use crate::error::Error;
 use anyhow::Context;
-use serde_json::Value;
 use std::fmt::{Debug, Formatter};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::broadcast::error::RecvError;
@@ -47,6 +46,7 @@ impl AppStateWebrtcExt for AppStateInner {
         peer_id: String,
         offer_sdp: Option<String>,
     ) -> Result<String, Error> {
+        // TODO return custom error distinguish between active call or peer error
         if self.active_call.is_some() {
             return Err(anyhow::anyhow!("Another call is already active").into());
         }
@@ -97,14 +97,14 @@ impl AppStateWebrtcExt for AppStateInner {
                                 app.emit("webrtc:call-disconnected", &peer_id_clone).ok();
                             }
                             PeerConnectionState::Failed => {
-                                log::info!("Failed to connect to peer");
-                                // Failed to connect to peer
+                                log::info!("Connection to peer failed");
+
                                 let app_state = app.state::<AppState>();
                                 let mut state = app_state.lock().await;
                                 state.end_call(&peer_id_clone).await;
 
-                                // TODO set cd to error state (must be ack.), display short error message in header
-                                app.emit("webrtc:call-error", Value::Null).ok();
+                                // TODO display short error message in info grid
+                                app.emit("webrtc:call-error", &peer_id_clone).ok();
                             }
                             PeerConnectionState::Closed => {
                                 // Graceful close
