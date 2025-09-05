@@ -1,19 +1,19 @@
 use crate::device::{DeviceType, StreamDevice};
-use crate::dsp::downmix_interleaved_to_mono;
+use crate::dsp::{downmix_interleaved_to_mono, MicProcessor};
 use crate::error::AudioError;
 use crate::{EncodedAudioFrame, FRAME_SIZE, TARGET_SAMPLE_RATE};
 use anyhow::Context;
 use bytes::Bytes;
 use cpal::traits::StreamTrait;
 use parking_lot::lock_api::Mutex;
-use ringbuf::HeapRb;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
 use ringbuf::traits::Split;
+use ringbuf::HeapRb;
 use rubato::Resampler;
 use serde::Serialize;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -293,6 +293,7 @@ impl CaptureStream {
 struct OpusFramer {
     frame: [f32; FRAME_SIZE],
     pos: usize,
+    processor: MicProcessor,
     encoder: opus::Encoder,
     encoded: Vec<u8>,
     tx: mpsc::Sender<EncodedAudioFrame>,
@@ -317,6 +318,7 @@ impl OpusFramer {
         Ok(Self {
             frame: [0.0f32; FRAME_SIZE],
             pos: 0usize,
+            processor: MicProcessor::default(),
             encoder,
             encoded: vec![0u8; MAX_OPUS_FRAME_SIZE],
             tx,
@@ -324,19 +326,35 @@ impl OpusFramer {
     }
 
     #[inline]
-    fn push_slice(&mut self, samples: &[f32], gain: f32) {
-        for &sample in samples {
-            self.frame[self.pos] = sample * gain;
-            self.pos += 1;
+    fn push_slice(&mut self, mut samples: &[f32], gain: f32) {
+        while !samples.is_empty() {
+            let need = FRAME_SIZE - self.pos;
+            let take = need.min(samples.len());
+
+            for (i, sample) in samples.iter().enumerate().take(take) {
+                self.frame[self.pos + i] = sample * gain;
+            }
+            self.pos += take;
+            samples = &samples[take..];
+
             if self.pos == FRAME_SIZE {
-                if let Ok(len) = self.encoder.encode_float(&self.frame, &mut self.encoded) {
-                    let bytes = Bytes::copy_from_slice(&self.encoded[..len]);
-                    if let Err(err) = self.tx.try_send(bytes) {
-                        tracing::warn!(?err, "Failed to send input audio frame");
+                self.processor.process_10ms(&mut self.frame);
+
+                match self
+                    .encoder
+                    .encode_float(&self.frame, &mut self.encoded)
+                {
+                    Ok(len) => {
+                        let bytes = Bytes::copy_from_slice(&self.encoded[..len]);
+                        if let Err(err) = self.tx.try_send(bytes) {
+                            tracing::warn!(?err, "Failed to send encoded input audio frame");
+                        }
                     }
-                } else {
-                    tracing::warn!("Failed to encode input audio frame");
+                    Err(err) => {
+                        tracing::warn!(?err, "Failed to encode input audio frame");
+                    }
                 }
+                
                 self.pos = 0;
             }
         }
