@@ -338,7 +338,7 @@ impl OpusFramer {
             samples = &samples[take..];
 
             if self.pos == FRAME_SIZE {
-                self.processor.process_10ms(&mut self.frame);
+                self.processor.process_frame(&mut self.frame);
 
                 match self
                     .encoder
