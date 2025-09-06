@@ -18,22 +18,14 @@ pub struct AppConfig {
     pub session: SessionConfig,
     pub auth: AuthConfig,
     pub vatsim: VatsimConfig,
+    pub updates: UpdatesConfig,
 }
 
 impl AppConfig {
     pub fn parse() -> anyhow::Result<Self> {
         let config = Config::builder()
             .add_source(Config::try_from(&AppConfig::default())?)
-            .add_source(
-                File::with_name(
-                    Path::new("/etc")
-                        .join(env!("CARGO_PKG_NAME").to_lowercase())
-                        .join("config.toml")
-                        .to_str()
-                        .context("Failed to build config file path")?,
-                )
-                .required(false),
-            )
+            .add_source(File::with_name(config_file_path("config.toml")?.as_str()).required(false))
             .add_source(File::with_name("config.toml").required(false))
             .add_source(
                 Environment::with_prefix("vacs")
@@ -55,6 +47,15 @@ impl AppConfig {
 
         Ok(config)
     }
+}
+
+pub fn config_file_path(file_name: impl AsRef<Path>) -> anyhow::Result<String> {
+    Ok(Path::new("/etc")
+        .join(env!("CARGO_PKG_NAME").to_lowercase())
+        .join(file_name)
+        .to_str()
+        .context("Failed to build config file path")?
+        .to_string())
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -152,6 +153,23 @@ impl Default for VatsimUserServiceConfig {
     fn default() -> Self {
         Self {
             user_details_endpoint_url: "https://auth-dev.vatsim.net/api/user".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UpdatesConfig {
+    pub release_manifest_path: String,
+    pub policy_path: String,
+}
+
+impl Default for UpdatesConfig {
+    fn default() -> Self {
+        Self {
+            release_manifest_path: config_file_path("releases.toml")
+                .expect("Failed to build release manifest path"),
+            policy_path: config_file_path("release_policy.toml")
+                .expect("Failed to build policy path"),
         }
     }
 }

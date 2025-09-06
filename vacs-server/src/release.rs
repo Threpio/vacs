@@ -1,0 +1,97 @@
+pub mod catalog;
+pub mod policy;
+
+use crate::http::error::AppError;
+use crate::release::catalog::file::FileCatalog;
+use crate::release::catalog::{Catalog, ReleaseAsset, ReleaseMeta};
+use crate::release::policy::Policy;
+use semver::Version;
+use std::sync::Arc;
+use tracing::instrument;
+use vacs_protocol::http::version::{Release, ReleaseChannel};
+
+pub struct UpdateChecker {
+    catalog: Arc<dyn Catalog>,
+    policy: Policy,
+}
+
+impl UpdateChecker {
+    pub fn new(catalog: Arc<dyn Catalog>, policy: Policy) -> Self {
+        Self { catalog, policy }
+    }
+
+    #[instrument(level = "debug", skip(self), err)]
+    pub fn check(
+        &self,
+        channel: ReleaseChannel,
+        client_version: Version,
+        target: String,
+        arch: String,
+    ) -> Result<Option<Release>, AppError> {
+        tracing::debug!("Checking for update");
+
+        let visible = self.policy.visible_channels(channel);
+
+        let mut newer: Vec<(ReleaseMeta, ReleaseAsset)> = Vec::new();
+        for ch in &visible {
+            for m in self.catalog.list(*ch)? {
+                if m.version > client_version
+                    && let Some(a) = m
+                        .assets
+                        .iter()
+                        .find(|a| a.target == target && a.arch == arch)
+                {
+                    newer.push((m.clone(), a.clone()));
+                }
+            }
+        }
+
+        newer.sort_by(|(a, _), (b, _)| a.version.cmp(&b.version));
+        let (meta, asset) = match newer.pop() {
+            Some(pair) => pair,
+            None => {
+                tracing::debug!(?visible, "No update found");
+                return Ok(None);
+            }
+        };
+
+        let required = {
+            let mut req = false;
+            'outer: for ch in &visible {
+                for m in self.catalog.list(*ch)? {
+                    if m.version > client_version
+                        && m.assets
+                            .iter()
+                            .any(|a| a.target == target && a.arch == arch)
+                        && (m.required || self.policy.is_required(*ch, &m.version))
+                    {
+                        req = true;
+                        break 'outer;
+                    }
+                }
+            }
+            req
+        };
+
+        let release = Release {
+            version: meta.version.to_string(),
+            notes: meta.notes,
+            pub_date: meta.pub_date,
+            url: asset.url,
+            signature: asset.signature.unwrap_or_default(), // TODO ensure signature is present or retrieve it from catalog
+            required,
+        };
+
+        tracing::debug!(?visible, ?release, "Update found");
+        Ok(Some(release))
+    }
+}
+
+impl Default for UpdateChecker {
+    fn default() -> Self {
+        Self::new(
+            Arc::new(FileCatalog::new("releases.toml").unwrap()),
+            Policy::new("policy.toml").unwrap(),
+        )
+    }
+}

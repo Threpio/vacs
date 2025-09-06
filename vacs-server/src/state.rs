@@ -1,17 +1,19 @@
 use crate::config;
 use crate::config::AppConfig;
+use crate::release::UpdateChecker;
 use crate::store::{Store, StoreBackend};
 use crate::ws::ClientSession;
 use anyhow::Context;
 use std::collections::HashMap;
 use std::time::Duration;
-use tokio::sync::{RwLock, broadcast, mpsc, watch};
+use tokio::sync::{broadcast, mpsc, watch, RwLock};
 use tracing::instrument;
 use uuid::Uuid;
 use vacs_protocol::ws::{ClientInfo, ErrorReason, SignalingMessage};
 
 pub struct AppState {
     pub config: AppConfig,
+    pub updates: UpdateChecker,
     store: Store,
     /// Key: CID
     clients: RwLock<HashMap<String, ClientSession>>,
@@ -20,14 +22,16 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(config: AppConfig, store: Store, shutdown_rx: watch::Receiver<()>) -> Self {
+    pub fn new(config: AppConfig, updates: UpdateChecker, store: Store, shutdown_rx: watch::Receiver<()>) -> Self {
         let (broadcast_tx, _) = broadcast::channel(config::BROADCAST_CHANNEL_CAPACITY);
         Self {
             config,
+            updates,
             store,
             clients: RwLock::new(HashMap::new()),
             broadcast_tx,
             shutdown_rx,
+
         }
     }
 

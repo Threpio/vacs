@@ -1,5 +1,6 @@
 mod auth;
 mod root;
+mod version;
 mod ws;
 
 use crate::state::AppState;
@@ -21,6 +22,7 @@ where
     Router::new()
         .nest("/auth", auth::routes())
         .nest("/ws", ws::routes().merge(crate::ws::routes()))
+        .nest("/version", version::routes())
         .merge(root::routes())
         .layer(
             TraceLayer::new_for_http().make_span_with(move |req: &Request<_>| {

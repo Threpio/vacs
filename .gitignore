@@ -134,8 +134,10 @@ Cargo.lock
 
 # End of https://www.toptal.com/developers/gitignore/api/rust,jetbrains
 
-# Local configuration file
+# Local configuration files
 /config.toml
+/releases.toml
+/policy.toml
 
 # RustRover HTTP client files
 *.http

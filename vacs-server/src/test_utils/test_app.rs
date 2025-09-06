@@ -1,9 +1,10 @@
 use crate::auth::layer::setup_mock_auth_layer;
 use crate::config::{AppConfig, AuthConfig};
+use crate::release::UpdateChecker;
 use crate::routes::create_app;
 use crate::state::AppState;
-use crate::store::Store;
 use crate::store::memory::MemoryStore;
+use crate::store::Store;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::watch;
@@ -29,6 +30,7 @@ impl TestApp {
         let (shutdown_tx, shutdown_rx) = watch::channel(());
         let state = Arc::new(AppState::new(
             config.clone(),
+            UpdateChecker::default(),
             Store::Memory(MemoryStore::default()),
             shutdown_rx,
         ));

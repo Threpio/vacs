@@ -1,7 +1,8 @@
 use crate::config::AppConfig;
+use crate::release::UpdateChecker;
 use crate::state::AppState;
-use crate::store::Store;
 use crate::store::memory::MemoryStore;
+use crate::store::Store;
 use crate::ws::ClientSession;
 use axum::extract::ws;
 use futures_util::{Sink, Stream};
@@ -9,7 +10,7 @@ use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tokio::sync::{Mutex, broadcast, mpsc, watch};
+use tokio::sync::{broadcast, mpsc, watch, Mutex};
 use vacs_protocol::ws::{ClientInfo, SignalingMessage};
 
 pub struct MockSink {
@@ -85,6 +86,7 @@ impl TestSetup {
         let (shutdown_tx, shutdown_rx) = watch::channel(());
         let app_state = Arc::new(AppState::new(
             AppConfig::default(),
+            UpdateChecker::default(),
             Store::Memory(MemoryStore::default()),
             shutdown_rx,
         ));
