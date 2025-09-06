@@ -1,0 +1,49 @@
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct Release {
+    pub version: String,
+    pub required: bool,
+    pub url: String,
+    pub signature: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pub_date: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ReleaseChannel {
+    #[default]
+    Stable,
+    Beta,
+    Dev,
+}
+
+impl FromStr for ReleaseChannel {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "stable" => Ok(ReleaseChannel::Stable),
+            "beta" => Ok(ReleaseChannel::Beta),
+            "dev" => Ok(ReleaseChannel::Dev),
+            _ => Err(format!("unknown release channel {}", s)),
+        }
+    }
+}
+
+impl TryFrom<&str> for ReleaseChannel {
+    type Error = String;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl TryFrom<String> for ReleaseChannel {
+    type Error = String;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.as_str().parse()
+    }
+}
