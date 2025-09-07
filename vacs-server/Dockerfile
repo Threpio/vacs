@@ -17,9 +17,8 @@ RUN cargo chef cook --release --bin vacs-server --recipe-path recipe.json
 
 COPY . .
 
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/src/vacs/target \
-    --mount=type=cache,target=/usr/local/cargo/git \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,id=cargo-registry \
+    --mount=type=cache,target=/usr/local/cargo/git,id=cargo-git \
     cargo build --release --bin vacs-server
 
 FROM debian:${DEBIAN_VERSION}-slim AS runtime
