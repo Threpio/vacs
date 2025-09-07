@@ -19,13 +19,20 @@ COPY . .
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/src/vacs/target \
+    --mount=type=cache,target=/usr/local/cargo/git \
     cargo build --release --bin vacs-server
 
 FROM debian:${DEBIAN_VERSION}-slim AS runtime
 
-LABEL org.opencontainers.image.source=https://github.com/MorpheusXAUT/vacs
-LABEL org.opencontainers.image.description="VATSIM ATC Comm System - Signaling Server"
-LABEL org.opencontainers.image.licenses=MIT
+ARG DEBIAN_VERSION
+LABEL org.opencontainers.image.title="vacs-server" \
+      org.opencontainers.image.description="VATSIM ATC Comm System – Signaling Server" \
+      org.opencontainers.image.url="https://github.com/MorpheusXAUT/vacs" \
+      org.opencontainers.image.documentation="https://github.com/MorpheusXAUT/vacs#readme" \
+      org.opencontainers.image.source="https://github.com/MorpheusXAUT/vacs" \
+      org.opencontainers.image.vendor="vacs" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.base.name="debian:${DEBIAN_VERSION}-slim"
 
 # Create a non-root user and group
 RUN useradd -m -u 10001 -U vacs
