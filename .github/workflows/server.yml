@@ -23,7 +23,7 @@ permissions:
   packages: write
 
 jobs:
-  docker:
+  build:
     runs-on: ubuntu-latest
     env:
       IMAGE_NAME: ghcr.io/morpheusxaut/vacs-server
@@ -72,14 +72,14 @@ jobs:
         with:
           context: .
           file: vacs-server/Dockerfile
+          sbom: true
           push: true
-          platforms: linux/amd64,linux/arm/v7,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache,mode=max
 
-      - name: Trivy scan (fail on HIGH/CRITICAL)
+      - name: Trivy scan
         uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: ${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
