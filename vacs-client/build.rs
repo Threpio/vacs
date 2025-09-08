@@ -13,7 +13,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_instructions(&rustc)?
         .emit()?;
 
-    tauri_build::build();
+    if let Ok(val) = std::env::var("VACS_VERSION_OVERRIDE") {
+        println!("cargo:rustc-env=VACS_VERSION_OVERRIDE={val}");
+    }
 
+    tauri_build::build();
     Ok(())
 }

@@ -62,7 +62,7 @@ impl VersionInfo {
     pub fn gather() -> Self {
         Self {
             build: BuildInfo::gather(),
-            version: env!("CARGO_PKG_VERSION"),
+            version: option_env!("VACS_VERSION_OVERRIDE").unwrap_or(env!("CARGO_PKG_VERSION")),
         }
     }
 }
