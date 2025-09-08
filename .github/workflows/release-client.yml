@@ -71,16 +71,6 @@ jobs:
           echo "draft=$DRAFT"       >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare additional version information for manual release
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        shell: bash
-        run: |
-          # create/update a lightweight tag locally so vergen sees it
-          git tag -f "${{ steps.vars.outputs.tag }}" HEAD
-          git describe --tags --always
-          # override version info built into client
-          echo "VACS_VERSION_OVERRIDE=${{ steps.vars.outputs.version }}" >> "$GITHUB_ENV"
-
   release:
     needs: prep
     strategy:
@@ -144,6 +134,16 @@ jobs:
           echo "draft=$DRAFT"       >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
 
+      - name: Prepare additional version information for manual release
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        run: |
+          # create/update a lightweight tag locally so vergen sees it
+          git tag -f "${{ steps.vars.outputs.tag }}" HEAD
+          git describe --tags --always
+          # override version info built into client
+          echo "VACS_VERSION_OVERRIDE=${{ steps.vars.outputs.version }}" >> "$GITHUB_ENV"
+
       - name: Install build dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -177,6 +177,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: vacs-client
+          appVersion: ${{ steps.vars.outputs.version }}
           args: ${{ matrix.args }}
           tagName: ${{ steps.vars.outputs.tag }}
           releaseName: "vacs-client v${{ steps.vars.outputs.version }}"
@@ -185,6 +186,7 @@ jobs:
           includeUpdaterJson: true
 
       - name: Attest build provenance
+        if: ${{ !github.event.repository.private || github.event.repository.owner.type == 'Organization' }}
         uses: actions/attest-build-provenance@v3
         with:
           subject-path: |
