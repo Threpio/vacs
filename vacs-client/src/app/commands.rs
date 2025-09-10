@@ -4,7 +4,7 @@ use crate::build::VersionInfo;
 use crate::config::{CLIENT_SETTINGS_FILE_NAME, Persistable, PersistedClientConfig};
 use crate::error::Error;
 use anyhow::Context;
-use tauri::{AppHandle, Manager, State, Window};
+use tauri::{AppHandle, Emitter, Manager, State, Window};
 
 #[tauri::command]
 pub fn app_frontend_ready() {
@@ -71,6 +71,10 @@ pub async fn app_update(app: AppHandle) -> Result<(), Error> {
                 |chunk_length, content_length| {
                     downloaded += chunk_length;
                     log::debug!("Downloaded {downloaded} of {content_length:?}");
+                    if let Some(content_length) = content_length {
+                        let progress = (downloaded / (content_length as usize)) * 100;
+                        app.emit("update:progress", progress.clamp(0, 100)).ok();
+                    }
                 },
                 || {
                     log::debug!("Download finished");

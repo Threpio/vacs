@@ -75,13 +75,19 @@ function UpdateButton() {
     const newVersion = useUpdateStore(state => state.newVersion);
     const {
         setVersions: setUpdateVersions,
-        openDialog: openUpdateDialog,
-        closeOverlay: closeUpdateOverlay
+        openMandatoryDialog,
+        openDownloadDialog,
+        closeOverlay
     } = useUpdateStore(state => state.actions);
 
     const handleOnClick = useAsyncDebounce(async () => {
         if (newVersion !== undefined) {
-            await invokeSafe("app_update");
+            try {
+                openDownloadDialog();
+                await invokeStrict("app_update");
+            } catch (e) {
+                closeOverlay();
+            }
         } else {
             const checkUpdateResult = await invokeSafe<{
                 currentVersion: string,
@@ -93,12 +99,12 @@ function UpdateButton() {
             setUpdateVersions(checkUpdateResult.currentVersion, checkUpdateResult.newVersion);
 
             if (checkUpdateResult.required) {
-                openUpdateDialog();
+                openMandatoryDialog();
             } else {
                 if (checkUpdateResult.newVersion === undefined) {
                     setNoNewVersion(true);
                 }
-                closeUpdateOverlay();
+                closeOverlay();
             }
         }
     });

@@ -1,23 +1,30 @@
 import {clsx} from "clsx";
 import {useUpdateStore} from "../stores/update-store.ts";
 import Button from "./ui/Button.tsx";
-import {useCallback, useEffect} from "preact/hooks";
+import {useCallback, useEffect, useRef, useState} from "preact/hooks";
 import {getCurrentWindow} from "@tauri-apps/api/window";
 import {invoke} from "@tauri-apps/api/core";
 import {useAsyncDebounceState} from "../hooks/debounce-hook.ts";
+import {listen, UnlistenFn} from "@tauri-apps/api/event";
 
 function UpdateOverlay() {
     const overlayVisible = useUpdateStore(state => state.overlayVisible);
-    const dialogVisible = useUpdateStore(state => state.dialogVisible);
+    const mandatoryDialogVisible = useUpdateStore(state => state.mandatoryDialogVisible);
+    const downloadDialogVisible = useUpdateStore(state => state.downloadDialogVisible);
     const newVersion = useUpdateStore(state => state.newVersion);
     const {
         setVersions: setUpdateVersions,
-        openDialog: openUpdateDialog,
-        closeOverlay: closeUpdateOverlay
+        openMandatoryDialog,
+        openDownloadDialog,
+        closeOverlay
     } = useUpdateStore(state => state.actions);
+
+    const unlistenFns = useRef<Promise<UnlistenFn>[]>([]);
+    const [downloadProgress, setDownloadProgress] = useState<number>(0);
 
     const [handleUpdateClick, updating] = useAsyncDebounceState(async () => {
         try {
+            openDownloadDialog();
             await invoke("app_update");
         } catch (e) {
             // TODO: Open fatal error overlay
@@ -35,9 +42,9 @@ function UpdateOverlay() {
                 setUpdateVersions(checkUpdateResult.currentVersion, checkUpdateResult.newVersion);
 
                 if (checkUpdateResult.required) {
-                    openUpdateDialog();
+                    openMandatoryDialog();
                 } else {
-                    closeUpdateOverlay();
+                    closeOverlay();
                 }
             } catch (e) {
                 console.error(e);
@@ -45,11 +52,21 @@ function UpdateOverlay() {
             }
         };
         void checkForUpdate();
-    });
+    }, []);
 
     const handleKeyDown = useCallback((event: KeyboardEvent) => {
         event.preventDefault();
     }, []);
+
+    useEffect(() => {
+        if (downloadDialogVisible) {
+            unlistenFns.current.push(listen<number>("update:progress", (event) => {
+                setDownloadProgress(event.payload);
+            }));
+        } else {
+            unlistenFns.current.forEach(f => f.then(fn => fn()));
+        }
+    }, [downloadDialogVisible]);
 
     useEffect(() => {
         if (overlayVisible) {
@@ -61,9 +78,9 @@ function UpdateOverlay() {
 
     return overlayVisible ? (
         <div
-            className={clsx("z-40 absolute top-0 left-0 w-full h-full flex justify-center items-center", dialogVisible && "bg-[rgba(0,0,0,0.5)]")}
+            className={clsx("z-40 absolute top-0 left-0 w-full h-full flex justify-center items-center", (mandatoryDialogVisible || downloadDialogVisible) && "bg-[rgba(0,0,0,0.5)]")}
         >
-            {dialogVisible &&
+            {mandatoryDialogVisible &&
                 <div
                     className="bg-gray-300 border-4 border-t-blue-500 border-l-blue-500 border-b-blue-700 border-r-blue-700 rounded w-100 py-2">
                     <p className="w-full text-center text-lg font-semibold wrap-break-word">Mandatory update</p>
@@ -78,8 +95,20 @@ function UpdateOverlay() {
                         <Button color="green" className="px-3 py-1" onClick={handleUpdateClick}
                                 disabled={updating}>Update</Button>
                     </div>
-                    {/*TODO: Add progress bar*/}
                     {updating && <p className="w-full text-center font-semibold">Updating...</p>}
+                </div>
+            }
+            {downloadDialogVisible &&
+                <div
+                    className="bg-gray-300 border-4 border-t-blue-500 border-l-blue-500 border-b-blue-700 border-r-blue-700 rounded w-100 py-2 px-5">
+                    <p className="w-full text-center text-lg font-semibold wrap-break-word">Updating...</p>
+                    <p className="w-full text-center wrap-break-word mb-4">
+                        The application will restart once the update is downloaded and installed.
+                    </p>
+                    <div className="w-full h-1.5 rounded-full bg-gray-400">
+                        <div className="h-full rounded bg-green-600" style={{width: `${downloadProgress}%`}}></div>
+                    </div>
+                    <p className="w-full text-sm text-gray-600">{downloadProgress < 100 ? "Downloading" : "Installing"}...</p>
                 </div>
             }
         </div>

@@ -2,30 +2,36 @@ import {create} from "zustand/react";
 
 type UpdateState = {
     overlayVisible: boolean,
-    dialogVisible: boolean,
+    mandatoryDialogVisible: boolean,
+    downloadDialogVisible: boolean,
     currentVersion: string,
     newVersion?: string,
     actions: {
         setVersions: (currentVersion: string, newVersion?: string) => void,
-        openDialog: () => void,
+        openMandatoryDialog: () => void,
+        openDownloadDialog: () => void,
         closeOverlay: () => void,
     }
 }
 
 export const useUpdateStore = create<UpdateState>()((set) => ({
     overlayVisible: true,
-    dialogVisible: false,
+    mandatoryDialogVisible: false,
+    downloadDialogVisible: false,
     currentVersion: "",
     newVersion: undefined,
     actions: {
         setVersions: (currentVersion: string, newVersion?: string) => {
             set({currentVersion, newVersion});
         },
-        openDialog: () => {
-            set({overlayVisible: true, dialogVisible: true});
+        openMandatoryDialog: () => {
+            set({overlayVisible: true, mandatoryDialogVisible: true, downloadDialogVisible: false});
+        },
+        openDownloadDialog: () => {
+            set({overlayVisible: true, downloadDialogVisible: true, mandatoryDialogVisible: false});
         },
         closeOverlay: () => {
-            set({overlayVisible: false, dialogVisible: false});
+            set({overlayVisible: false, mandatoryDialogVisible: false});
         }
     },
 }));
