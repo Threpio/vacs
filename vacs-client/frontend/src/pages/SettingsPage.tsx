@@ -9,6 +9,7 @@ import VolumeSettings from "../components/VolumeSettings.tsx";
 import AudioHostSelector from "../components/AudioHostSelector.tsx";
 import {useEffect, useState} from "preact/hooks";
 import {getCurrentWindow} from "@tauri-apps/api/window";
+import {useUpdateStore} from "../stores/update-store.ts";
 
 function SettingsPage() {
     return (
@@ -28,7 +29,10 @@ function SettingsPage() {
                 </div>
                 <div
                     className="h-20 w-full flex flex-row gap-2 justify-between p-2 [&>button]:px-1 [&>button]:shrink-0">
-                    <AlwaysOnTopButton/>
+                    <div className="h-full flex flex-row gap-2 items-center">
+                        <AlwaysOnTopButton/>
+                        <UpdateButton/>
+                    </div>
                     <DisconnectLogoutButtons/>
                 </div>
             </div>
@@ -66,6 +70,52 @@ function DisconnectLogoutButtons() {
     );
 }
 
+function UpdateButton() {
+    const [noNewVersion, setNoNewVersion] = useState<boolean>(false);
+    const newVersion = useUpdateStore(state => state.newVersion);
+    const {
+        setVersions: setUpdateVersions,
+        openDialog: openUpdateDialog,
+        closeOverlay: closeUpdateOverlay
+    } = useUpdateStore(state => state.actions);
+
+    const handleOnClick = useAsyncDebounce(async () => {
+        if (newVersion !== undefined) {
+            await invokeSafe("app_update");
+        } else {
+            const checkUpdateResult = await invokeSafe<{
+                currentVersion: string,
+                newVersion?: string,
+                required: boolean
+            }>("app_check_for_update");
+            if (checkUpdateResult === undefined) return;
+
+            setUpdateVersions(checkUpdateResult.currentVersion, checkUpdateResult.newVersion);
+
+            if (checkUpdateResult.required) {
+                openUpdateDialog();
+            } else {
+                if (checkUpdateResult.newVersion === undefined) {
+                    setNoNewVersion(true);
+                }
+                closeUpdateOverlay();
+            }
+        }
+    });
+
+    return (
+        <Button
+            color={newVersion === undefined ? "gray" : "green"}
+            className="w-24 h-full rounded"
+            onClick={handleOnClick}
+            disabled={noNewVersion}
+        >
+            {newVersion === undefined ? (noNewVersion ? <p>No Update<br/>available</p> : <p>Check for<br/>Updates</p>) :
+                <p>Update &<br/>Restart</p>}
+        </Button>
+    );
+}
+
 function AlwaysOnTopButton() {
     const [alwaysOnTop, setAlwaysOnTop] = useState<boolean>(false);
 
@@ -86,7 +136,7 @@ function AlwaysOnTopButton() {
     return (
         <Button
             color={alwaysOnTop ? "blue" : "cyan"}
-            className="rounded"
+            className="h-full rounded"
             onClick={toggleAlwaysOnTop}
         >
             <p>Always<br/>on Top</p>

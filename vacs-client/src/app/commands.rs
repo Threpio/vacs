@@ -1,4 +1,6 @@
 use crate::app::state::AppState;
+use crate::app::{UpdateInfo, get_update};
+use crate::build::VersionInfo;
 use crate::config::{CLIENT_SETTINGS_FILE_NAME, Persistable, PersistedClientConfig};
 use crate::error::Error;
 use anyhow::Context;
@@ -7,9 +9,87 @@ use tauri::{AppHandle, Manager, State, Window};
 #[tauri::command]
 pub fn app_frontend_ready() {
     log::info!("Frontend ready");
+    // TODO: Show window?
 }
 
 #[tauri::command]
+#[vacs_macros::log_err]
+pub async fn app_check_for_update(app: AppHandle) -> Result<UpdateInfo, Error> {
+    let current_version = VersionInfo::gather().version.to_string();
+
+    if !cfg!(debug_assertions) {
+        // TODO: inversion
+        log::info!("Debug build, skipping update check");
+        return Ok(UpdateInfo {
+            current_version,
+            new_version: None,
+            required: false,
+        });
+    }
+
+    let update_info = if let Some(update) = get_update(&app).await? {
+        let required = update
+            .raw_json
+            .get("required")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        log::info!("Update available. Required: {required}");
+
+        UpdateInfo {
+            current_version,
+            new_version: Some(update.version),
+            required,
+        }
+    } else {
+        UpdateInfo {
+            current_version,
+            new_version: None,
+            required: false,
+        }
+    };
+
+    Ok(update_info)
+}
+
+#[tauri::command]
+#[vacs_macros::log_err]
+pub async fn app_update(app: AppHandle) -> Result<(), Error> {
+    if !cfg!(debug_assertions) { // TODO: inversion
+        log::info!("Debug build, skipping update");
+        return Ok(());
+    }
+
+    if let Some(update) = get_update(&app).await? {
+        log::info!(
+            "Downloading and installing update. Version: {}",
+            &update.version
+        );
+        let mut downloaded = 0;
+        update
+            .download_and_install(
+                |chunk_length, content_length| {
+                    downloaded += chunk_length;
+                    log::debug!("Downloaded {downloaded} of {content_length:?}");
+                },
+                || {
+                    log::debug!("Download finished");
+                },
+            )
+            .await
+            .context("Failed to download and install the update")?;
+
+        log::info!("Update installed. Restarting...");
+        app.restart();
+    } else {
+        log::warn!("Tried to update without an update being available");
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+#[vacs_macros::log_err]
 pub async fn app_set_always_on_top(
     window: Window,
     app: AppHandle,

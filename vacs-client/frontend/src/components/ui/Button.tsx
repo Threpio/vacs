@@ -48,7 +48,7 @@ export const ForceDisabledButtonColors: Record<ButtonColor, string> = {
 
 const ButtonHighlightColors: Record<ButtonHighlightColor, string> = {
     green: "bg-[#4b8747]",
-    gray: "bg-gray-300"
+    gray: "bg-gray-300",
 };
 
 function Button(props: ButtonProps) {

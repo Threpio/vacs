@@ -38,6 +38,11 @@
       "frontend/icons/icon.icns",
       "frontend/icons/icon.ico"
     ],
+    "windows": {
+      "nsis": {
+        "installMode": "both"
+      }
+    },
     "linux": {
       "deb": {
         "depends": [

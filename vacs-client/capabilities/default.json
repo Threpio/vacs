@@ -12,6 +12,7 @@
     "opener:default",
     "log:default",
     "core:window:allow-set-always-on-top",
-    "updater:default"
+    "updater:default",
+    "core:window:allow-close"
   ]
 }

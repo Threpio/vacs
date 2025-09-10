@@ -25,6 +25,7 @@ import PhoneButton from "./components/ui/PhoneButton.tsx";
 import RadioPrioButton from "./components/ui/RadioPrioButton.tsx";
 import EndButton from "./components/ui/EndButton.tsx";
 import {setupWebrtcListeners} from "./listeners/webrtc-listener.ts";
+import UpdateOverlay from "./components/UpdateOverlay.tsx";
 
 function App() {
     const connected = useSignalingStore(state => state.connected);
@@ -80,7 +81,7 @@ function App() {
                     {/* Right Button Row */}
                     <div className="w-24 h-full px-2 pb-6 flex flex-col justify-between">
                         <LinkButton path="/telephone" className="h-16 shrink-0">
-                            <img src={telephone} alt="Telephone" className="h-18 w-18" draggable={false} />
+                            <img src={telephone} alt="Telephone" className="h-18 w-18" draggable={false}/>
                         </LinkButton>
                         <CallQueue/>
                     </div>
@@ -96,7 +97,8 @@ function App() {
                     <EndButton/>
                 </div>
             </div>
-            <ErrorOverlay />
+            <ErrorOverlay/>
+            <UpdateOverlay/>
         </div>
     );
 }

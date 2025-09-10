@@ -3,7 +3,7 @@ import {create} from "zustand/react";
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
 type AuthState = {
-    cid: string | null;
+    cid: string;
     status: AuthStatus,
     setAuthenticated: (cid: string) => void;
     setUnauthenticated: () => void;

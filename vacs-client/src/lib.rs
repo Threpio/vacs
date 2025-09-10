@@ -9,11 +9,9 @@ mod signaling;
 
 use crate::app::state::{AppState, AppStateInner};
 use crate::build::VersionInfo;
-use crate::config::BackendEndpoint;
 use crate::error::FrontendError;
 use tauri::{Emitter, Manager, RunEvent};
 use tokio::sync::Mutex;
-use crate::app::update;
 
 pub fn run() {
     tauri::Builder::default()
@@ -50,10 +48,6 @@ pub fn run() {
             log::info!("{:?}", VersionInfo::gather());
 
             let state = AppStateInner::new(app.handle())?;
-            let updater_url = state
-                .config
-                .backend
-                .endpoint_url(BackendEndpoint::VersionUpdateCheck);
 
             if state.config.client.always_on_top {
                 if let Err(err) = app
@@ -61,7 +55,7 @@ pub fn run() {
                     .unwrap()
                     .set_always_on_top(true)
                 {
-                    log::warn!("Failed to set main window always on top: {err}");
+                    log::warn!("Failed to set main window to be always on top: {err}");
                 } else {
                     log::debug!("Set main window to be always on top");
                 }
@@ -69,20 +63,13 @@ pub fn run() {
 
             app.manage(Mutex::new(state));
 
-            if cfg!(debug_assertions) {
-                log::info!("Debug build, skipping update check");
-            } else {
-                let app_handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    update(&app_handle, updater_url.as_str()).await.unwrap()
-                });
-            }
-
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            app::commands::app_check_for_update,
             app::commands::app_frontend_ready,
             app::commands::app_set_always_on_top,
+            app::commands::app_update,
             audio::commands::audio_get_devices,
             audio::commands::audio_get_hosts,
             audio::commands::audio_get_volumes,

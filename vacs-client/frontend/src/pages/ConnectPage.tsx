@@ -48,10 +48,11 @@ function ConnectPage() {
                         Do you wish to terminate the other client and connect anyways?
                     </p>
                     <div
-                        className={clsx("w-full flex flex-row gap-2 justify-center items-center mb-2", terminateLoading && "brightness-70 [&>button]:cursor-not-allowed")}>
-                        <Button color="red" className="px-3 py-1"
-                                onClick={() => setTerminateDialogOpen(false)}>No</Button>
-                        <Button color="green" className="px-3 py-1" onClick={handleTerminateClick}>Yes</Button>
+                        className={clsx("w-full flex flex-row gap-2 justify-center items-center mb-2", terminateLoading && "brightness-90 [&>button]:cursor-not-allowed")}>
+                        <Button color="red" className="px-3 py-1" onClick={() => setTerminateDialogOpen(false)}
+                                disabled={terminateLoading}>No</Button>
+                        <Button color="green" className="px-3 py-1" onClick={handleTerminateClick}
+                                disabled={terminateLoading}>Yes</Button>
                     </div>
                     {terminateLoading && <p className="w-full text-center font-semibold">Terminating...</p>}
                 </div>
