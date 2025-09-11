@@ -2,5 +2,14 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "enabledManagers": ["cargo", "npm"],
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "semanticCommitType": "chore",
+      "semanticCommits": "enabled",
+      "matchPackageNames": ["*"]
+    },
   ]
 }
