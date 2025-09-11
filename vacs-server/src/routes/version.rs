@@ -10,6 +10,7 @@ pub fn routes() -> Router<Arc<AppState>> {
 mod get {
     use crate::http::error::ProblemDetails;
     use crate::http::{ApiMaybe, MaybeJsonOrProblem};
+    use crate::release::catalog::BundleType;
     use crate::state::AppState;
     use axum::extract::{Query, State};
     use axum::http::StatusCode;
@@ -23,6 +24,7 @@ mod get {
         version: String,
         target: String,
         arch: String,
+        bundle_type: BundleType,
         channel: Option<ReleaseChannel>,
     }
 
@@ -44,10 +46,13 @@ mod get {
 
         let channel = params.channel.unwrap_or_default();
 
-        match state
-            .updates
-            .check(channel, client_ver, params.target, params.arch)
-        {
+        match state.updates.check(
+            channel,
+            client_ver,
+            params.target,
+            params.arch,
+            params.bundle_type,
+        ) {
             Ok(Some(rel)) => Ok(MaybeJsonOrProblem::ok(rel)),
             Ok(None) => Ok(MaybeJsonOrProblem::no_content()),
             Err(err) => Err(err),

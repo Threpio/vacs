@@ -3,7 +3,7 @@ pub mod policy;
 
 use crate::http::error::AppError;
 use crate::release::catalog::file::FileCatalog;
-use crate::release::catalog::{Catalog, ReleaseAsset, ReleaseMeta};
+use crate::release::catalog::{BundleType, Catalog, ReleaseAsset, ReleaseMeta};
 use crate::release::policy::Policy;
 use semver::Version;
 use std::sync::Arc;
@@ -27,6 +27,7 @@ impl UpdateChecker {
         client_version: Version,
         target: String,
         arch: String,
+        bundle_type: BundleType,
     ) -> Result<Option<Release>, AppError> {
         tracing::debug!("Checking for update");
 
@@ -36,10 +37,9 @@ impl UpdateChecker {
         for ch in &visible {
             for m in self.catalog.list(*ch)? {
                 if m.version > client_version
-                    && let Some(a) = m
-                        .assets
-                        .iter()
-                        .find(|a| a.target == target && a.arch == arch)
+                    && let Some(a) = m.assets.iter().find(|a| {
+                        a.bundle_type == bundle_type && a.target == target && a.arch == arch
+                    })
                 {
                     newer.push((m.clone(), a.clone()));
                 }
@@ -60,9 +60,9 @@ impl UpdateChecker {
             'outer: for ch in &visible {
                 for m in self.catalog.list(*ch)? {
                     if m.version > client_version
-                        && m.assets
-                            .iter()
-                            .any(|a| a.target == target && a.arch == arch)
+                        && m.assets.iter().any(|a| {
+                            a.bundle_type == bundle_type && a.target == target && a.arch == arch
+                        })
                         && (m.required || self.policy.is_required(*ch, &m.version))
                     {
                         req = true;
