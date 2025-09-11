@@ -137,7 +137,7 @@ impl Default for BackendEndpointsConfigs {
             logout: "/auth/logout".to_string(),
             ws_token: "/ws/token".to_string(),
             terminate_ws_session: "/ws".to_string(),
-            version_update_check: "/version/update?version={{current_version}}&target={{target}}&arch={{arch}}".to_string(),       
+            version_update_check: "/version/update?version={{current_version}}&target={{target}}&arch={{arch}}&bundle_type={{bundle_type}}".to_string(),       
         }
     }
 }
