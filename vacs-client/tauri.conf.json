@@ -15,7 +15,7 @@
         "width": 1000,
         "height": 753,
         "visible": false,
-        "backgroundColor":"#B5BBC6"
+        "backgroundColor": "#B5BBC6"
       }
     ],
     "security": {
@@ -83,7 +83,9 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["vacs"]
+        "schemes": [
+          "vacs"
+        ]
       }
     },
     "updater": {

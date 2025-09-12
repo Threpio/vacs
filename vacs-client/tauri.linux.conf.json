@@ -4,7 +4,9 @@
       {
         "title": "vacs",
         "width": 1000,
-        "height": 797
+        "height": 797,
+        "visible": true,
+        "backgroundColor": "#B5BBC6"
       }
     ]
   }
