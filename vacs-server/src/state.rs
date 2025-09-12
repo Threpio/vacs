@@ -6,7 +6,7 @@ use crate::ws::ClientSession;
 use anyhow::Context;
 use std::collections::HashMap;
 use std::time::Duration;
-use tokio::sync::{broadcast, mpsc, watch, RwLock};
+use tokio::sync::{RwLock, broadcast, mpsc, watch};
 use tracing::instrument;
 use uuid::Uuid;
 use vacs_protocol::ws::{ClientInfo, ErrorReason, SignalingMessage};
@@ -22,7 +22,12 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(config: AppConfig, updates: UpdateChecker, store: Store, shutdown_rx: watch::Receiver<()>) -> Self {
+    pub fn new(
+        config: AppConfig,
+        updates: UpdateChecker,
+        store: Store,
+        shutdown_rx: watch::Receiver<()>,
+    ) -> Self {
         let (broadcast_tx, _) = broadcast::channel(config::BROADCAST_CHANNEL_CAPACITY);
         Self {
             config,
@@ -31,7 +36,6 @@ impl AppState {
             clients: RwLock::new(HashMap::new()),
             broadcast_tx,
             shutdown_rx,
-
         }
     }
 

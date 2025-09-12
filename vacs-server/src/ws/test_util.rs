@@ -1,8 +1,8 @@
 use crate::config::AppConfig;
 use crate::release::UpdateChecker;
 use crate::state::AppState;
-use crate::store::memory::MemoryStore;
 use crate::store::Store;
+use crate::store::memory::MemoryStore;
 use crate::ws::ClientSession;
 use axum::extract::ws;
 use futures_util::{Sink, Stream};
@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tokio::sync::{broadcast, mpsc, watch, Mutex};
+use tokio::sync::{Mutex, broadcast, mpsc, watch};
 use vacs_protocol::ws::{ClientInfo, SignalingMessage};
 
 pub struct MockSink {

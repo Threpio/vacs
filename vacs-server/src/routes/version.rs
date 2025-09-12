@@ -1,6 +1,6 @@
 use crate::state::AppState;
-use axum::routing::get;
 use axum::Router;
+use axum::routing::get;
 use std::sync::Arc;
 
 pub fn routes() -> Router<Arc<AppState>> {
