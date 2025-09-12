@@ -4,6 +4,7 @@ use crate::error::Error;
 use anyhow::Context;
 use rfd::{MessageButtons, MessageDialogResult};
 use serde::Serialize;
+use std::sync::mpsc::sync_channel;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::{Update, UpdaterExt};
@@ -49,28 +50,26 @@ pub async fn get_update(app: &AppHandle) -> Result<Option<Update>, Error> {
 
 pub fn open_fatal_error_dialog(app: &AppHandle, msg: &str) {
     let open_logs = "Open logs folder";
-    let mut dialog = rfd::MessageDialog::new()
+    let result = rfd::MessageDialog::new()
         .set_level(rfd::MessageLevel::Error)
-        .set_title("Fatal Error")
+        .set_title("vacs - Fatal error")
         .set_description(msg)
         .set_buttons(MessageButtons::OkCancelCustom(
             open_logs.to_string(),
             "Close".to_string(),
-        ));
-    if let Some(window) = app.get_webview_window("main") {
-        dialog = dialog.set_parent(&window);
-    }
+        ))
+        .show_blocking();
 
-    match dialog.show() {
+    match result {
         MessageDialogResult::Custom(text) if text == open_logs => {
             if let Err(err) = open_logs_folder(app) {
                 log::error!("Failed to open logs folder: {err}");
 
                 rfd::MessageDialog::new()
                     .set_level(rfd::MessageLevel::Error)
-                    .set_title("Fatal Error")
-                    .set_description("Failed to open the logs folder.")
-                    .show();
+                    .set_title("vacs - Fatal error")
+                    .set_description("Failed to open logs folder.")
+                    .show_blocking();
             }
         }
         _ => {}
@@ -89,4 +88,21 @@ pub fn open_logs_folder(app: &AppHandle) -> Result<(), Error> {
         .context("Failed to open logs folder")?;
 
     Ok(())
+}
+
+trait BlockingMessageDialog {
+    fn show_blocking(self) -> MessageDialogResult;
+}
+
+impl BlockingMessageDialog for rfd::MessageDialog {
+    fn show_blocking(self) -> MessageDialogResult {
+        let (tx, rx) = sync_channel(0);
+
+        std::thread::spawn(move || {
+            let result = self.show();
+            tx.send(result).unwrap();
+        });
+
+        rx.recv().unwrap()
+    }
 }
