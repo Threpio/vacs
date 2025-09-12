@@ -3,7 +3,8 @@ use serde_json::Value;
 use std::fmt::{Debug, Display, Formatter};
 use tauri::{AppHandle, Emitter};
 use thiserror::Error;
-use vacs_protocol::ws::CallErrorReason;
+use vacs_protocol::ws::{CallErrorReason, ErrorReason, LoginFailureReason};
+use vacs_signaling::error::SignalingError;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -122,6 +123,11 @@ impl FrontendError {
         self
     }
 
+    pub fn timeout(mut self, timeout_ms: u16) -> Self {
+        self.timeout_ms = Some(timeout_ms);
+        self
+    }
+
     pub fn new_with_timeout(
         title: impl Into<String>,
         message: impl Into<String>,
@@ -153,10 +159,40 @@ impl From<&Error> for FrontendError {
             Error::AudioDevice(err) => FrontendError::new("Audio device error", err.to_string()),
             Error::Reqwest(err) => FrontendError::new("HTTP error", err.to_string()),
             Error::Network(err) => FrontendError::new("Network error", err),
-            Error::Signaling(err) => FrontendError::new("Signaling error", err.to_string()),
+            Error::Signaling(err) => {
+                FrontendError::new("Signaling error", format_signaling_error(err))
+            }
             Error::Webrtc(err) => FrontendError::new("WebRTC error", err.to_string()),
             Error::Other(err) => FrontendError::new("Error", err.to_string()),
         }
+    }
+}
+
+fn format_signaling_error(err: &SignalingError) -> String {
+    match err {
+        SignalingError::LoginError(reason) => match reason {
+            LoginFailureReason::Unauthorized => "Login failed: Unauthorized.",
+            LoginFailureReason::DuplicateId => {
+                "Login failed: Another client with your CID is already connected."
+            }
+            LoginFailureReason::InvalidCredentials => "Login failed: Invalid credentials.",
+            LoginFailureReason::Timeout => {
+                "Login failed: Login did not complete in time. Please try again."
+            }
+            LoginFailureReason::IncompatibleProtocolVersion => {
+                "Login failed: Incompatible protocol version. Please check your client version."
+            }
+        }
+        .to_string(),
+        SignalingError::ServerError(reason) => match reason {
+            ErrorReason::MalformedMessage => "Server error: Malformed message".to_string(),
+            ErrorReason::Internal(msg) => format!("Internal server error: {msg}"),
+            ErrorReason::PeerConnection => "Server error: Peer connection error.".to_string(),
+            ErrorReason::UnexpectedMessage(msg) => {
+                format!("Server error: unexpected message: {msg}")
+            }
+        },
+        _ => err.to_string(),
     }
 }
 

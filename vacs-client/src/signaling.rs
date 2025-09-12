@@ -6,7 +6,7 @@ use crate::app::state::signaling::AppStateSignalingExt;
 use crate::app::state::webrtc::AppStateWebrtcExt;
 use crate::audio::manager::SourceType;
 use crate::config::{WS_LOGIN_TIMEOUT, WS_READY_TIMEOUT};
-use crate::error::FrontendError;
+use crate::error::{Error, FrontendError};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::{oneshot, watch};
 use vacs_protocol::ws::{CallErrorReason, ErrorReason, SignalingMessage};
@@ -387,20 +387,17 @@ impl Connection {
 
                     app.emit::<FrontendError>(
                         "error",
-                        FrontendError::new_with_timeout(
-                            "Signaling error",
-                            "Malformed message",
-                            5000,
-                        ),
+                        FrontendError::from(Error::from(SignalingError::ServerError(reason)))
+                            .timeout(5000),
                     )
                     .ok();
                 }
-                ErrorReason::Internal(msg) => {
-                    log::warn!("Received internal error message from signaling server");
+                ErrorReason::Internal(ref msg) => {
+                    log::warn!("Received internal error message from signaling server: {msg}");
 
                     app.emit::<FrontendError>(
                         "error",
-                        FrontendError::new("Signaling error", format!("Internal: {msg}")),
+                        FrontendError::from(Error::from(SignalingError::ServerError(reason))),
                     )
                     .ok();
                 }
@@ -425,12 +422,12 @@ impl Connection {
 
                     state.emit_call_error(app, peer_id, false, CallErrorReason::SignalingFailure);
                 }
-                ErrorReason::UnexpectedMessage(msg) => {
-                    log::warn!("Received unexpected message error from signaling server");
+                ErrorReason::UnexpectedMessage(ref msg) => {
+                    log::warn!("Received unexpected message error from signaling server: {msg}");
 
                     app.emit::<FrontendError>(
                         "error",
-                        FrontendError::new("Signaling error", format!("Unexpected message: {msg}")),
+                        FrontendError::from(Error::from(SignalingError::ServerError(reason))),
                     )
                     .ok();
                 }
