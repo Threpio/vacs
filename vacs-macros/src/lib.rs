@@ -32,7 +32,8 @@ pub fn log_err(_attr: TokenStream, item: TokenStream) -> TokenStream {
     } else {
         quote! {
             {
-                match #block {
+                let __res = (|| #block)();
+                match __res {
                     Ok(val) => Ok(val),
                     Err(err) => {
                         log::error!(target: concat!(module_path!(), "::", stringify!(#fn_name)), "{:?}", err);
