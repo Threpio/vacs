@@ -50,7 +50,7 @@ pub async fn get_update(app: &AppHandle) -> Result<Option<Update>, Error> {
 }
 
 pub fn open_fatal_error_dialog(app: &AppHandle, msg: &str) {
-    let open_logs = "Open logs";
+    let open_logs = "Open logs folder";
     let result = app
         .dialog()
         .message(msg)
@@ -63,26 +63,30 @@ pub fn open_fatal_error_dialog(app: &AppHandle, msg: &str) {
         .blocking_show_with_result();
 
     match result {
-        MessageDialogResult::Custom(text) if text == open_logs => open_log_dir(app),
+        MessageDialogResult::Custom(text) if text == open_logs => {
+            if let Err(err) = open_logs_folder(app) {
+                log::error!("Failed to open logs folder: {err}");
+                app.dialog()
+                    .message("Failed to open the logs folder.")
+                    .kind(MessageDialogKind::Error)
+                    .title("Fatal Error")
+                    .blocking_show();
+            }
+        }
         _ => {}
     };
 }
 
-pub fn open_log_dir(app: &AppHandle) {
-    if let Err(err) = (|app: &AppHandle| {
-        let log_dir = app.path().app_log_dir().context("Failed to get log dir")?;
-        let log_dir = log_dir.to_str().context("Log dir is empty")?;
+pub fn open_logs_folder(app: &AppHandle) -> Result<(), Error> {
+    let log_dir = app
+        .path()
+        .app_log_dir()
+        .context("Failed to get logs folder")?;
+    let log_dir = log_dir.to_str().context("Log dir is empty")?;
 
-        app.opener()
-            .open_path(log_dir, None::<&str>)
-            .context("Failed to open log dir")
-    })(app)
-    {
-        log::error!("Failed to open log directory: {err}");
-        app.dialog()
-            .message("Failed to open the logs directory.")
-            .kind(MessageDialogKind::Error)
-            .title("Fatal Error")
-            .blocking_show();
-    };
+    app.opener()
+        .open_path(log_dir, None::<&str>)
+        .context("Failed to open logs folder")?;
+
+    Ok(())
 }

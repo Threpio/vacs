@@ -32,6 +32,8 @@ function SettingsPage() {
                     <div className="h-full flex flex-row gap-2 items-center">
                         <AlwaysOnTopButton/>
                         <UpdateButton/>
+                        <Button color="gray" className="w-24 h-full rounded"
+                                onClick={() => invokeSafe("app_open_logs_folder")}>Open logs<br/>folder</Button>
                     </div>
                     <DisconnectLogoutButtons/>
                 </div>

@@ -87,6 +87,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             app::commands::app_check_for_update,
             app::commands::app_frontend_ready,
+            app::commands::app_open_logs_folder,
             app::commands::app_set_always_on_top,
             app::commands::app_update,
             audio::commands::audio_get_devices,
