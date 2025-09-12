@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
+use vacs_protocol::http::version::ReleaseChannel;
 use vacs_webrtc::config::WebrtcConfig;
 
 /// User-Agent string used for all HTTP requests.
@@ -137,7 +138,7 @@ impl Default for BackendEndpointsConfigs {
             logout: "/auth/logout".to_string(),
             ws_token: "/ws/token".to_string(),
             terminate_ws_session: "/ws".to_string(),
-            version_update_check: "/version/update?version={{current_version}}&target={{target}}&arch={{arch}}&bundle_type={{bundle_type}}".to_string(),       
+            version_update_check: "/version/update?version={{current_version}}&target={{target}}&arch={{arch}}&bundle_type={{bundle_type}}&channel={{channel}}".to_string(),
         }
     }
 }
@@ -185,6 +186,7 @@ impl From<AudioConfig> for PersistedAudioConfig {
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {
     pub always_on_top: bool,
+    pub release_channel: ReleaseChannel,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

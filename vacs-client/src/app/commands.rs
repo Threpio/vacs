@@ -1,7 +1,7 @@
 use crate::app::state::AppState;
-use crate::app::{UpdateInfo, get_update};
+use crate::app::{get_update, UpdateInfo};
 use crate::build::VersionInfo;
-use crate::config::{CLIENT_SETTINGS_FILE_NAME, Persistable, PersistedClientConfig};
+use crate::config::{Persistable, PersistedClientConfig, CLIENT_SETTINGS_FILE_NAME};
 use crate::error::Error;
 use anyhow::Context;
 use tauri::{AppHandle, Emitter, Manager, State, Window};

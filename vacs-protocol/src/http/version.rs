@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -20,6 +21,16 @@ pub enum ReleaseChannel {
     Stable,
     Beta,
     Dev,
+}
+
+impl ReleaseChannel {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ReleaseChannel::Stable => "stable",
+            ReleaseChannel::Beta => "beta",
+            ReleaseChannel::Dev => "dev",
+        }
+    }
 }
 
 impl FromStr for ReleaseChannel {
@@ -45,5 +56,17 @@ impl TryFrom<String> for ReleaseChannel {
     type Error = String;
     fn try_from(value: String) -> Result<Self, Self::Error> {
         value.as_str().parse()
+    }
+}
+
+impl Display for ReleaseChannel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl AsRef<str> for ReleaseChannel {
+    fn as_ref(&self) -> &str {
+        self.as_str()
     }
 }

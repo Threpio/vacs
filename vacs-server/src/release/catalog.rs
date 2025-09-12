@@ -3,6 +3,7 @@ pub mod file;
 use crate::http::error::AppError;
 use semver::Version;
 use serde::{Deserialize, Serialize};
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use vacs_protocol::http::version::ReleaseChannel;
 
@@ -27,6 +28,20 @@ pub enum BundleType {
     App,
     Msi,
     Nsis,
+}
+
+impl BundleType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            BundleType::Unknown => "unknown",
+            BundleType::AppImage => "appimage",
+            BundleType::Deb => "deb",
+            BundleType::Rpm => "rpm",
+            BundleType::App => "app",
+            BundleType::Msi => "msi",
+            BundleType::Nsis => "nsis",
+        }
+    }
 }
 
 impl FromStr for BundleType {
@@ -56,6 +71,18 @@ impl TryFrom<String> for BundleType {
     type Error = String;
     fn try_from(value: String) -> Result<Self, Self::Error> {
         value.as_str().parse()
+    }
+}
+
+impl Display for BundleType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl AsRef<str> for BundleType {
+    fn as_ref(&self) -> &str {
+        self.as_str()
     }
 }
 
