@@ -17,8 +17,7 @@ pub fn app_frontend_ready() {
 pub async fn app_check_for_update(app: AppHandle) -> Result<UpdateInfo, Error> {
     let current_version = VersionInfo::gather().version.to_string();
 
-    if !cfg!(debug_assertions) {
-        // TODO: inversion
+    if cfg!(debug_assertions) {
         log::info!("Debug build, skipping update check");
         return Ok(UpdateInfo {
             current_version,
@@ -55,7 +54,7 @@ pub async fn app_check_for_update(app: AppHandle) -> Result<UpdateInfo, Error> {
 #[tauri::command]
 #[vacs_macros::log_err]
 pub async fn app_update(app: AppHandle) -> Result<(), Error> {
-    if !cfg!(debug_assertions) { // TODO: inversion
+    if cfg!(debug_assertions) {
         log::info!("Debug build, skipping update");
         return Ok(());
     }
