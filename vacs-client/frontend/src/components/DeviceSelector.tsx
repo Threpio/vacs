@@ -1,5 +1,5 @@
 import Select, {SelectOption} from "./ui/Select.tsx";
-import {useEffect, useState} from "preact/hooks";
+import {useCallback, useEffect, useState} from "preact/hooks";
 import {invokeStrict} from "../error.ts";
 import {AudioDevices} from "../types/audio.ts";
 import {useAsyncDebounce} from "../hooks/debounce-hook.ts";
@@ -16,7 +16,7 @@ function DeviceSelector(props: DeviceSelectorProps) {
 
     const callDisplayType = useCallStore(state => state.callDisplay?.type);
 
-    const fetchDevices = async () => {
+    const fetchDevices = useCallback(async () => {
         try {
             const audioDevices = await invokeStrict<AudioDevices>("audio_get_devices", {
                 deviceType: props.deviceType
@@ -46,7 +46,7 @@ function DeviceSelector(props: DeviceSelectorProps) {
             setDevices(deviceList);
         } catch {
         }
-    };
+    }, [props.deviceType]);
 
     const handleOnChange = useAsyncDebounce(async (new_device: string) => {
         const previousDeviceName = device;
@@ -63,7 +63,7 @@ function DeviceSelector(props: DeviceSelectorProps) {
 
     useEffect(() => {
         void fetchDevices();
-    }, []);
+    }, [fetchDevices]);
 
     return (
         <>

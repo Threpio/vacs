@@ -1,7 +1,7 @@
 import {clsx} from "clsx";
 import {useUpdateStore} from "../stores/update-store.ts";
 import Button from "./ui/Button.tsx";
-import {useCallback, useEffect, useRef, useState} from "preact/hooks";
+import {useEffect, useRef, useState} from "preact/hooks";
 import {getCurrentWindow} from "@tauri-apps/api/window";
 import {useAsyncDebounceState} from "../hooks/debounce-hook.ts";
 import {listen, UnlistenFn} from "@tauri-apps/api/event";
@@ -27,7 +27,7 @@ function UpdateOverlay() {
         try {
             openDownloadDialog();
             await invokeStrict("app_update");
-        } catch (e) {
+        } catch {
             openMandatoryDialog();
         }
     });
@@ -48,17 +48,13 @@ function UpdateOverlay() {
                 } else {
                     closeOverlay();
                 }
-            } catch (e) {
+            } catch {
                 setUpdateVersions(await getVersion());
                 closeOverlay();
             }
         };
         void checkForUpdate();
-    }, []);
-
-    const handleKeyDown = useCallback((event: KeyboardEvent) => {
-        event.preventDefault();
-    }, []);
+    }, [closeOverlay, openMandatoryDialog, setUpdateVersions]);
 
     useEffect(() => {
         if (downloadDialogVisible) {
@@ -72,9 +68,9 @@ function UpdateOverlay() {
 
     useEffect(() => {
         if (overlayVisible) {
-            document.addEventListener("keydown", handleKeyDown);
+            document.addEventListener("keydown", preventKeyDown);
         } else {
-            document.removeEventListener("keydown", handleKeyDown);
+            document.removeEventListener("keydown", preventKeyDown);
         }
     }, [overlayVisible]);
 
@@ -116,5 +112,9 @@ function UpdateOverlay() {
         </div>
     ) : <></>;
 }
+
+const preventKeyDown = (event: KeyboardEvent) => {
+    event.preventDefault();
+};
 
 export default UpdateOverlay;

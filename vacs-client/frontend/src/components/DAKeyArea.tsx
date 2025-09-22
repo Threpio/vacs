@@ -6,8 +6,8 @@ function DAKeyArea() {
 
     return (
         <div className="flex flex-col flex-wrap h-full overflow-hidden py-3 px-2 gap-3">
-            {clients.map(client =>
-                <DAKey client={client}/>
+            {clients.map((client, idx) =>
+                <DAKey key={idx} client={client}/>
             )}
         </div>
     );

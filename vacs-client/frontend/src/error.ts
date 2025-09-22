@@ -17,7 +17,7 @@ export type CallError = {
 export async function invokeSafe<T>(cmd: string, args?: InvokeArgs): Promise<T | undefined> {
     try {
         return await invoke<T>(cmd, args);
-    } catch(e) {
+    } catch (e) {
         openErrorOverlayFromUnknown(e);
     }
 }
@@ -25,7 +25,7 @@ export async function invokeSafe<T>(cmd: string, args?: InvokeArgs): Promise<T |
 export async function invokeStrict<T>(cmd: string, args?: InvokeArgs): Promise<T> {
     try {
         return await invoke<T>(cmd, args);
-    } catch(e) {
+    } catch (e) {
         openErrorOverlayFromUnknown(e);
         throw e;
     }
@@ -43,12 +43,15 @@ export function openErrorOverlayFromUnknown(e: unknown) {
 }
 
 export function isError(err: unknown): err is Error {
+    if (typeof err !== "object" || err === null) {
+        return false;
+    }
+
+    const maybeError = err as Record<string, unknown>;
+
     return (
-        typeof err === 'object' &&
-        err !== null &&
-        typeof (err as any).title === 'string' &&
-        typeof (err as any).message === 'string' &&
-        (typeof (err as any).timeout_ms === 'undefined' ||
-            typeof (err as any).timeout_ms === 'number')
+        typeof maybeError.title === 'string' &&
+        typeof maybeError.message === 'string' &&
+        (maybeError.timeout_ms === undefined || typeof maybeError.timeout_ms === 'number')
     );
 }

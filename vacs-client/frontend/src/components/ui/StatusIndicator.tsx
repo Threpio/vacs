@@ -21,9 +21,9 @@ function StatusIndicator() {
             }
 
             return "green";
-        } else {
-            return "gray";
         }
+
+        return "gray";
     })();
 
     return (

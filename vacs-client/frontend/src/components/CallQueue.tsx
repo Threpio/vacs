@@ -7,14 +7,21 @@ function CallQueue() {
     const blink = useCallStore(state => state.blink);
     const callDisplay = useCallStore(state => state.callDisplay);
     const incomingCalls = useCallStore(state => state.incomingCalls);
-    const {acceptCall, endCall, dismissRejectedPeer, dismissErrorPeer, removePeer} = useCallStore(state => state.actions);
+    const {
+        acceptCall,
+        endCall,
+        dismissRejectedPeer,
+        dismissErrorPeer,
+        removePeer
+    } = useCallStore(state => state.actions);
 
     const handleCallDisplayClick = async (peerId: string) => {
         if (callDisplay?.type === "accepted" || callDisplay?.type === "outgoing") {
             try {
                 await invokeStrict("signaling_end_call", {peerId: peerId});
                 endCall();
-            } catch {}
+            } catch {
+            }
         } else if (callDisplay?.type === "rejected") {
             dismissRejectedPeer();
         } else if (callDisplay?.type === "error") {
@@ -41,7 +48,8 @@ function CallQueue() {
             {/*Call Display*/}
             {callDisplay !== undefined ? (
                 <div className="relative">
-                    {callDisplay.connectionState === "disconnected" && <img className="absolute top-1 left-1 h-5 w-5" src={unplug} alt="Disconnected"/>}
+                    {callDisplay.connectionState === "disconnected" &&
+                        <img className="absolute top-1 left-1 h-5 w-5" src={unplug} alt="Disconnected"/>}
                     <Button color={cdColor}
                             highlight={callDisplay.type === "outgoing" || callDisplay.type === "rejected" ? "green" : undefined}
                             softDisabled={true}
@@ -53,12 +61,13 @@ function CallQueue() {
             )}
 
             {/*Answer Keys*/}
-            {incomingCalls.map(peerId => (
-                <Button color={blink ? "green" : "gray"} className={"min-h-16 text-sm"}
+            {incomingCalls.map((peerId, idx) => (
+                <Button key={idx} color={blink ? "green" : "gray"} className={"min-h-16 text-sm"}
                         onClick={() => handleAnswerKeyClick(peerId)}>{peerId}</Button>
             ))}
-            {Array.from(Array(Math.max(5 - incomingCalls.length, 0))).map(() => <div
-                className="w-full border rounded-md min-h-16"></div>)}
+            {Array.from(Array(Math.max(5 - incomingCalls.length, 0)).keys()).map((idx) =>
+                <div key={idx} className="w-full border rounded-md min-h-16"></div>
+            )}
         </div>
     );
 }

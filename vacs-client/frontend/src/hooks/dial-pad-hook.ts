@@ -4,9 +4,8 @@ const getNextChar = (char: string, chars: string[]): string => {
     const index = chars.indexOf(char);
     if (index === chars.length - 1 || index === -1) {
         return chars[0];
-    } else {
-        return chars[index + 1];
     }
+    return chars[index + 1];
 };
 
 export function useDialPadInput() {
@@ -47,5 +46,5 @@ export function useDialPadInput() {
         setDialInput("");
     };
 
-    return { dialInput, setDialInput, handleDialClick, clearLastChar, clearAll };
+    return {dialInput, setDialInput, handleDialClick, clearLastChar, clearAll};
 }

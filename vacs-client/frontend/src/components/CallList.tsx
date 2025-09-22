@@ -5,6 +5,7 @@ import {clsx} from "clsx";
 import {HEADER_HEIGHT_REM, useCallList} from "../hooks/call-list-hook.ts";
 import {invokeStrict} from "../error.ts";
 import {useCallStore} from "../stores/call-store.ts";
+import {Fragment} from "preact";
 
 function CallList() {
     const calls = useCallListStore(state => state.callList);
@@ -62,7 +63,7 @@ function CallList() {
                         ) : <></>;
 
                     return (
-                        <>
+                        <Fragment key={idx}>
                             <CallRow
                                 index={idx}
                                 call={calls[callIndex]}
@@ -72,7 +73,7 @@ function CallList() {
                                 }}
                             />
                             {lastElement}
-                        </>
+                        </Fragment>
                     )
                 })}
             </div>
@@ -153,7 +154,7 @@ function ScrollButtonRow({direction, disabled, onClick}: {
                 <path d="M62.5 0L120 60H5L62.5 0Z" fill={disabled ? "#6A7282" : "black"}/>
                 <path
                     d="M63.2217 26.3076L120.722 86.3076L122.344 88H2.65625L4.27832 86.3076L61.7783 26.3076L62.5 25.5547L63.2217 26.3076Z"
-                    fill={disabled ? "#6A7282" : "black"} stroke="#D1D5DC" stroke-width="2"/>
+                    fill={disabled ? "#6A7282" : "black"} stroke="#D1D5DC" strokeWidth="2"/>
             </svg>
         </div>
     );

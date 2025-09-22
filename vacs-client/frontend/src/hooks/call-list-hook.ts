@@ -77,7 +77,7 @@ export function useCallList({callsCount}: UseCallListOptions) {
             observer.disconnect();
             window.removeEventListener("keydown", onKeyDown);
         };
-    }, []);
+    }, [onKeyDown]);
 
     return {listContainer, scrollOffset, setScrollOffset, selectedCall, setSelectedCall, visibleCallIndices, maxScrollOffset};
 }

@@ -87,7 +87,7 @@ function UpdateButton() {
             try {
                 openDownloadDialog();
                 await invokeStrict("app_update");
-            } catch (e) {
+            } catch {
                 closeOverlay();
             }
         } else {

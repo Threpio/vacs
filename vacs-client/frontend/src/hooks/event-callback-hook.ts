@@ -1,11 +1,11 @@
 import {useCallback, useRef} from "preact/hooks";
 
-export function useEventCallback<T extends (...args: any[]) => any>(fn: T): T {
+export function useEventCallback<TArgs extends unknown[], TResult>(fn: (...args: TArgs) => TResult): (...args: TArgs) => TResult {
     const fnRef = useRef(fn);
 
     fnRef.current = fn;
 
-    return useCallback(((...args: Parameters<T>): ReturnType<T> => {
+    return useCallback(((...args: TArgs): TResult => {
         return fnRef.current(...args);
-    }) as T, []);
+    }), []);
 }

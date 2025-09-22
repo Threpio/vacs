@@ -1,4 +1,4 @@
-import {useCallback, useRef, useState} from "preact/hooks";
+import {useCallback, useEffect, useRef, useState} from "preact/hooks";
 
 export function useAsyncDebounce<TArgs extends unknown[], TResult>(
     fn: (...args: TArgs) => Promise<TResult>
@@ -19,15 +19,20 @@ export function useAsyncDebounce<TArgs extends unknown[], TResult>(
 export function useAsyncDebounceState<TArgs extends unknown[], TResult>(
     fn: (...args: TArgs) => Promise<TResult>
 ): [(...args: TArgs) => Promise<TResult | void>, boolean] {
+    const loadingRef = useRef(false);
     const [loading, setLoading] = useState<boolean>(false);
+    const mountedRef = useRef(true);
+
+    useEffect(() => () => { mountedRef.current = false; }, []);
 
     const wrapped = useCallback(async (...args: TArgs): Promise<TResult | void> => {
-        if (loading) return;
-        setLoading(true);
+        if (loadingRef.current) return;
+        loadingRef.current = true;
+        if (mountedRef.current) setLoading(true);
         try {
             return await fn(...args);
         } finally {
-            setLoading(false);
+            if (mountedRef.current) setLoading(false);
         }
     }, [fn]);
 

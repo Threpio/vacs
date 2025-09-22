@@ -13,7 +13,8 @@ function InfoGrid() {
     const currentVersion = useUpdateStore(state => state.currentVersion);
     const newVersion = useUpdateStore(state => state.newVersion);
 
-    const versionText = (newVersion === undefined ? "Version: " : "") + "v" + currentVersion + (newVersion ? ` - UPDATE AVAILABLE (v${newVersion})` : "");
+    const versionText = `${newVersion === undefined ? "Version: " : ""}v${currentVersion}${newVersion ? ` - UPDATE AVAILABLE (v${newVersion})` : ""}`;
+
     const handleVersionClick = () => {
         void invokeSafe("audio_play_ui_click");
         navigate("/settings")

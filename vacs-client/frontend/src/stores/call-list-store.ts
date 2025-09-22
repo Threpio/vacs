@@ -11,7 +11,21 @@ type CallListState = {
 };
 
 export const useCallListStore = create<CallListState>()((set, get) => ({
-    callList: [],
+    callList: [
+        {type: "IN", time: "10:00", name: "John Doe", number: "+49 123 456 7890"},
+        {type: "IN", time: "10:00", name: "John Doe", number: "+49 123 456 7890"},
+        {type: "IN", time: "10:00", name: "John Doe", number: "+49 123 456 7890"},
+        {type: "IN", time: "10:00", name: "John Doe", number: "+49 123 456 7890"},
+        {type: "IN", time: "10:00", name: "John Doe", number: "+49 123 456 7890"},
+        {type: "IN", time: "10:00", name: "John Doe", number: "+49 123 456 7890"},
+        {type: "IN", time: "10:00", name: "John Doe", number: "+49 123 456 7890"},
+        {type: "IN", time: "10:00", name: "John Doe", number: "+49 123 456 7890"},
+        {type: "IN", time: "10:00", name: "John Doe", number: "+49 123 456 7890"},
+        {type: "IN", time: "10:00", name: "John Doe", number: "+49 123 456 7890"},
+        {type: "IN", time: "10:00", name: "John Doe", number: "+49 123 456 7890"},
+        {type: "IN", time: "10:00", name: "John Doe", number: "+49 123 456 7890"},
+        {type: "IN", time: "10:00", name: "John Doe", number: "+49 123 456 7890"},
+    ],
     actions: {
         addCall: (call: CallListItem) => {
             set({callList: [call, ...get().callList]});
