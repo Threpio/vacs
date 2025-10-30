@@ -10,54 +10,54 @@
   "packages": {
     "vacs-audio": {
       "release-type": "rust",
-      "changelog-path": "vacs-audio/CHANGELOG.md",
+      "changelog-path": "CHANGELOG.md",
       "extra-label": "crate: vacs-audio"
     },
     "vacs-client": {
       "release-type": "rust",
-      "changelog-path": "vacs-client/CHANGELOG.md",
+      "changelog-path": "CHANGELOG.md",
       "extra-label": "crate: vacs-client",
       "extra-files": [
         {
           "type": "json",
-          "path": "vacs-client/package.json",
+          "path": "package.json",
           "jsonpath": "$.version"
         },
         {
           "type": "json",
-          "path": "vacs-client/frontend/package.json",
+          "path": "frontend/package.json",
           "jsonpath": "$.version"
         }
       ]
     },
     "vacs-macros": {
       "release-type": "rust",
-      "changelog-path": "vacs-macros/CHANGELOG.md",
+      "changelog-path": "CHANGELOG.md",
       "extra-label": "crate: vacs-macros"
     },
     "vacs-protocol": {
       "release-type": "rust",
-      "changelog-path": "vacs-protocol/CHANGELOG.md",
+      "changelog-path": "CHANGELOG.md",
       "extra-label": "crate: vacs-protocol"
     },
     "vacs-server": {
       "release-type": "rust",
-      "changelog-path": "vacs-server/CHANGELOG.md",
+      "changelog-path": "CHANGELOG.md",
       "extra-label": "crate: vacs-server"
     },
     "vacs-signaling": {
       "release-type": "rust",
-      "changelog-path": "vacs-signaling/CHANGELOG.md",
+      "changelog-path": "CHANGELOG.md",
       "extra-label": "crate: vacs-signaling"
     },
     "vacs-vatsim": {
       "release-type": "rust",
-      "changelog-path": "vacs-vatsim/CHANGELOG.md",
+      "changelog-path": "CHANGELOG.md",
       "extra-label": "crate: vacs-vatsim"
     },
     "vacs-webrtc": {
       "release-type": "rust",
-      "changelog-path": "vacs-webrtc/CHANGELOG.md",
+      "changelog-path": "CHANGELOG.md",
       "extra-label": "crate: vacs-webrtc"
     }
   }
