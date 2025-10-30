@@ -11,12 +11,6 @@ on:
         default: ''
         type: string
 
-
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-
 jobs:
   release-please:
     runs-on: ubuntu-latest
@@ -24,3 +18,4 @@ jobs:
       - uses: googleapis/release-please-action@v4.4.0
         with:
           target-branch: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref != '' && github.event.inputs.ref || github.ref_name }}
+          token: '${{ secrets.RELEASE_PLEASE_PAT }}'
