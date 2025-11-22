@@ -17,11 +17,12 @@ use crate::app::state::keybinds::AppStateKeybindsExt;
 use crate::app::state::{AppState, AppStateInner};
 use crate::audio::manager::AudioManagerHandle;
 use crate::build::VersionInfo;
+use crate::config::{CLIENT_SETTINGS_FILE_NAME, Persistable, PersistedClientConfig};
 use crate::error::{StartupError, StartupErrorExt};
 use crate::keybinds::engine::KeybindEngineHandle;
 use crate::platform::Capabilities;
 use anyhow::Context;
-use tauri::{App, Manager, RunEvent};
+use tauri::{App, Manager, RunEvent, WindowEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tokio::sync::Mutex as TokioMutex;
 
@@ -47,7 +48,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::default().build())
         .plugin(tauri_plugin_prevent_default::debug())
         .setup(|app| {
             log::info!("{:?}", VersionInfo::gather());
@@ -75,12 +76,13 @@ pub fn run() {
 
                 let state = AppStateInner::new(app.handle())?;
 
+                let main_window = app
+                    .get_webview_window("main")
+                    .context("Failed to get main window")
+                    .map_startup_err(StartupError::Other)?;
+
                 if state.config.client.always_on_top {
                     if capabilities.always_on_top {
-                        let main_window = app
-                            .get_webview_window("main")
-                            .context("Failed to get main window")
-                            .map_startup_err(StartupError::Other)?;
                         if let Err(err) = main_window.set_always_on_top(true) {
                             log::warn!("Failed to set main window to be always on top: {err}");
                         } else {
@@ -88,6 +90,14 @@ pub fn run() {
                         }
                     } else {
                         log::warn!("Your platform ({}) does not support always on top windows, setting is ignored.", capabilities.platform)
+                    }
+                }
+
+                if state.config.client.fullscreen {
+                    if let Err(err) = main_window.set_fullscreen(true) {
+                        log::warn!("Failed to set main window to be fullscreen: {err}");
+                    } else {
+                        log::debug!("Set main window to be fullscreen");
                     }
                 }
 
@@ -126,7 +136,10 @@ pub fn run() {
             app::commands::app_frontend_ready,
             app::commands::app_open_logs_folder,
             app::commands::app_platform_capabilities,
+            app::commands::app_quit,
+            app::commands::app_reset_window_size,
             app::commands::app_set_always_on_top,
+            app::commands::app_set_fullscreen,
             app::commands::app_update,
             audio::commands::audio_get_devices,
             audio::commands::audio_get_hosts,
@@ -156,13 +169,29 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("Failed to build tauri application")
         .run(move |app_handle, event| {
-            if let RunEvent::ExitRequested { .. } = event {
+            if let RunEvent::WindowEvent {event: WindowEvent::CloseRequested {..}, ..} = event {
                 let app_handle = app_handle.clone();
                 tauri::async_runtime::block_on(async move {
                     app_handle
                         .state::<HttpState>()
                         .persist()
                         .expect("Failed to persist http state");
+
+                    let mut client_config = app_handle.state::<AppState>().lock().await.config.client.clone();
+                    if !client_config.fullscreen {
+                        match client_config.update_window_state(&app_handle) {
+                            Ok(()) => {
+                                let config_dir = app_handle
+                                    .path()
+                                    .app_config_dir()
+                                    .expect("Cannot get config directory");
+                                let persisted_config: PersistedClientConfig = client_config.into();
+                                persisted_config.persist(&config_dir, CLIENT_SETTINGS_FILE_NAME)
+                                    .expect("Failed to persist client config");
+                            }
+                            Err(err) => log::warn!("Failed to update window state, window position and size will not be persisted: {err}")
+                        }
+                    }
 
                     app_handle.state::<KeybindEngineHandle>().write().shutdown();
 

@@ -1,3 +1,4 @@
+use crate::app::window::WindowProvider;
 use crate::error::Error;
 use crate::radio::push_to_talk::PushToTalkRadio;
 use crate::radio::{DynRadio, RadioIntegration};
@@ -9,6 +10,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
+use tauri::{LogicalSize, PhysicalPosition, PhysicalSize};
 use vacs_signaling::protocol::http::version::ReleaseChannel;
 use vacs_webrtc::config::WebrtcConfig;
 
@@ -190,6 +192,9 @@ impl From<AudioConfig> for PersistedAudioConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {
     pub always_on_top: bool,
+    pub fullscreen: bool,
+    pub position: Option<PhysicalPosition<i32>>,
+    pub size: Option<PhysicalSize<u32>>,
     pub release_channel: ReleaseChannel,
     pub signaling_auto_reconnect: bool,
     pub transmit_config: TransmitConfig,
@@ -201,6 +206,9 @@ impl Default for ClientConfig {
     fn default() -> Self {
         Self {
             always_on_top: false,
+            fullscreen: false,
+            position: None,
+            size: None,
             release_channel: ReleaseChannel::default(),
             signaling_auto_reconnect: true,
             transmit_config: TransmitConfig::default(),
@@ -213,6 +221,130 @@ impl Default for ClientConfig {
 impl ClientConfig {
     pub fn max_signaling_reconnect_attempts(&self) -> u8 {
         if self.signaling_auto_reconnect { 8 } else { 0 }
+    }
+
+    pub fn default_window_size<P>(provider: &P) -> Result<PhysicalSize<u32>, Error>
+    where
+        P: WindowProvider + ?Sized,
+    {
+        Ok(LogicalSize::new(
+            1000.0f64,
+            if cfg!(target_os = "macos") {
+                781.0f64
+            } else {
+                753.0f64
+            },
+        )
+        .to_physical(provider.scale_factor()?))
+    }
+
+    pub fn update_window_state<P>(&mut self, provider: &P) -> Result<(), Error>
+    where
+        P: WindowProvider + ?Sized,
+    {
+        let window = provider.window()?;
+        self.position = Some(window.position()?);
+        self.size = Some(window.size()?);
+
+        log::debug!(
+            "Updating window position to {:?} and size to {:?}",
+            self.position.unwrap(),
+            self.size.unwrap()
+        );
+        Ok(())
+    }
+
+    pub fn restore_window_state<P>(&self, provider: &P) -> Result<(), Error>
+    where
+        P: WindowProvider + ?Sized,
+    {
+        let window = provider.window()?;
+
+        log::debug!(
+            "Restoring window position to {:?} and size to {:?}",
+            self.position,
+            self.size
+        );
+
+        if let Some(position) = self.position {
+            for m in window
+                .available_monitors()
+                .context("Failed to get available monitors")?
+            {
+                let PhysicalPosition { x, y } = *m.position();
+                let PhysicalSize { width, height } = *m.size();
+
+                let left = x;
+                let right = x + width as i32;
+                let top = y;
+                let bottom = y + height as i32;
+
+                let size = self.size.unwrap_or(Self::default_window_size(&window)?);
+
+                let intersects = [
+                    (position.x, position.y),
+                    (position.x + size.width as i32, position.y),
+                    (position.x, position.y + size.height as i32),
+                    (
+                        position.x + size.width as i32,
+                        position.y + size.height as i32,
+                    ),
+                ]
+                .into_iter()
+                .any(|(x, y)| x >= left && x < right && y >= top && y < bottom);
+
+                if intersects {
+                    window
+                        .set_position(position)
+                        .context("Failed to set main window position")?;
+                    break;
+                }
+            }
+        }
+
+        if let Some(size) = self.size {
+            window
+                .set_size(size)
+                .context("Failed to set main window size")?;
+
+            #[cfg(target_os = "linux")]
+            {
+                log::debug!("Verifying correct window size after decorations apply");
+
+                // This timeout is **absolutely crucial** as the window manager does not update the
+                // window size immediately after a resize has been requested, but only after a short
+                // delay. If we were to compare the window size immediately after resizing, we would
+                // always receive the expected values, however, the window manager would still apply
+                // decorations later, changing the actual size, which is then incorrectly persisted.
+                // This will result in a short "flicker" of the window size, which we would optimally
+                // hide by simply not showing the window until we're sure its size is correct. However,
+                // since there's another bug that prevents the menu bar from being interactable if the
+                // window is initialized hidden, which is even less desirable, we'll have to live with
+                // the flicker for now.
+                // Upstream tauri/tao issues related to this:
+                // - https://github.com/tauri-apps/tao/issues/929
+                // - https://github.com/tauri-apps/tao/pull/1055
+                std::thread::sleep(Duration::from_millis(50));
+                let actual_size = window.inner_size().context("Failed to get window size")?;
+
+                let width_diff = actual_size.width.saturating_sub(size.width);
+                let height_diff = actual_size.height.saturating_sub(size.height);
+
+                if width_diff > 0 || height_diff > 0 {
+                    log::warn!(
+                        "Window size changed after decorations apply, expected: {size:?}, got: {actual_size:?}. Resizing again"
+                    );
+                    window
+                        .set_size(PhysicalSize::new(
+                            size.width.saturating_sub(width_diff),
+                            size.height.saturating_sub(height_diff),
+                        ))
+                        .context("Failed to fix main window size")?;
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

@@ -13,7 +13,7 @@ pub struct Capabilities {
 
 impl Default for Capabilities {
     fn default() -> Self {
-        let platform = detect_platform();
+        let platform = Platform::detect();
 
         Self {
             always_on_top: !matches!(platform, Platform::LinuxWayland),
@@ -23,10 +23,9 @@ impl Default for Capabilities {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[allow(dead_code)]
 pub enum Platform {
-    #[default]
     Unknown,
     Windows,
     MacOs,
@@ -35,44 +34,44 @@ pub enum Platform {
     LinuxUnknown,
 }
 
-pub fn detect_platform() -> Platform {
-    #[cfg(target_os = "windows")]
-    {
-        Platform::Windows
-    }
+impl Platform {
+    pub fn detect() -> Platform {
+        #[cfg(target_os = "windows")]
+        {
+            Platform::Windows
+        }
 
-    #[cfg(target_os = "macos")]
-    {
-        Platform::MacOs
-    }
+        #[cfg(target_os = "macos")]
+        {
+            Platform::MacOs
+        }
 
-    #[cfg(target_os = "linux")]
-    {
-        use std::env;
-        if let Ok(xdg_session_type) = env::var("XDG_SESSION_TYPE") {
-            match xdg_session_type.to_lowercase().as_str() {
-                "wayland" => return Platform::LinuxWayland,
-                "x11" => return Platform::LinuxX11,
-                _ => {}
+        #[cfg(target_os = "linux")]
+        {
+            use std::env;
+            if let Ok(xdg_session_type) = env::var("XDG_SESSION_TYPE") {
+                match xdg_session_type.to_lowercase().as_str() {
+                    "wayland" => return Platform::LinuxWayland,
+                    "x11" => return Platform::LinuxX11,
+                    _ => {}
+                }
+            }
+
+            if env::var("WAYLAND_DISPLAY").is_ok() {
+                Platform::LinuxWayland
+            } else if env::var("DISPLAY").is_ok() {
+                Platform::LinuxX11
+            } else {
+                Platform::LinuxUnknown
             }
         }
 
-        if env::var("WAYLAND_DISPLAY").is_ok() {
-            Platform::LinuxWayland
-        } else if env::var("DISPLAY").is_ok() {
-            Platform::LinuxX11
-        } else {
-            Platform::LinuxUnknown
+        #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+        {
+            Platform::Unknown
         }
     }
 
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-    {
-        Platform::Unknown
-    }
-}
-
-impl Platform {
     #[allow(dead_code)]
     pub fn is_linux(&self) -> bool {
         matches!(
@@ -90,6 +89,12 @@ impl Platform {
             Platform::LinuxUnknown => "LinuxUnknown",
             Platform::Unknown => "Unknown",
         }
+    }
+}
+
+impl Default for Platform {
+    fn default() -> Self {
+        Self::detect()
     }
 }
 
