@@ -4,14 +4,14 @@ import StatusIndicator from "./ui/StatusIndicator.tsx";
 type TimeState = {
     hours: string;
     minutes: string;
-    day: string;
+    seconds: string;
 };
 
 function Clock() {
     const [time, setTime] = useState<TimeState>({
         hours: "99",
         minutes: "99",
-        day: "99",
+        seconds: "99",
     });
 
     useEffect(() => {
@@ -19,13 +19,13 @@ function Clock() {
             const now = new Date();
             const hours = now.getUTCHours().toString().padStart(2, "0");
             const minutes = now.getUTCMinutes().toString().padStart(2, "0");
-            const day = now.getUTCDate().toString().padStart(2, "0");
+            const seconds = now.getUTCSeconds().toString().padStart(2, "0");
 
             setTime(prev => {
-                if (prev.hours === hours && prev.minutes === minutes && prev.day === day) {
+                if (prev.hours === hours && prev.minutes === minutes && prev.seconds === seconds) {
                     return prev;
                 }
-                return {hours, minutes, day};
+                return {hours, minutes, seconds};
             });
         };
 
@@ -47,7 +47,7 @@ function Clock() {
                     <StatusIndicator />
                 </div>
                 <p className="font-bold leading-3 tracking-wider text-xl text-gray-500">
-                    {time.day}
+                    {time.seconds}
                 </p>
             </div>
         </div>
